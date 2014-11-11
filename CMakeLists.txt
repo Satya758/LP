@@ -1,6 +1,67 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.1)
+
 project(linearprogramming)
+
+set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_CXX_FLAGS "-std=c++14")
+
+add_subdirectory(include)
+add_subdirectory(src)
+
+####### Required Libraries ########################
+# Header libs
+set(EIGEN_INC "" CACHE PATH "Eigen Include Directory") #No default value
+set(BOOST_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
+# Header libs
+# Binaries
+set(BOOST_LOG_LIB "" CACHE PATH "Boost log library") #No default value
+set(SS_CHOLMOD_LIB "" CACHE PATH "SuiteSparse CHOLMOD") #No default value
+set(METIS_LIB "" CACHE PATH "Metis location")
+set(LAPACK_LIB "" CACHE PATH "Lapack location")
+set(BLAS_LIB "" CACHE PATH "Blas location")
+# Binaries
+####### Required Libraries ########################
+
+include_directories(${EIGEN_INC})
+include_directories(${BOOST_INC})
+
+#BOOST LOG
+add_definitions(-DBOOST_ALL_DYN_LINK)
+find_library(BOOST_LOG boost_log PATHS ${BOOST_LOG_LIB} NO_DEFAULT_PATH)
+find_library(BOOST_LOG_SETUP boost_log_setup PATHS ${BOOST_LOG_LIB} NO_DEFAULT_PATH)
+find_library(BOOST_DATE_TIME boost_date_time PATHS ${BOOST_LOG_LIB} NO_DEFAULT_PATH)
+find_library(BOOST_SYSTEM boost_system PATHS ${BOOST_LOG_LIB} NO_DEFAULT_PATH)
+find_library(BOOST_THREAD boost_thread PATHS ${BOOST_LOG_LIB} NO_DEFAULT_PATH)
+#BOOST LOG
+
+#SuiteSparse
+find_library(SS_AMD amd PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
+find_library(SS_CAMD camd PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
+find_library(SS_CCOLAMD ccolamd PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
+find_library(SS_CHOLMOD cholmod PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
+find_library(SS_COLAMD colamd PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
+find_library(SS_CONFIG suitesparseconfig PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
+find_library(SS_UMFPACK umfpack PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
+#SuiteSparse
+
+find_library(METIS metis PATHS ${METIS_LIB} NO_DEFAULT_PATH)
+find_library(LAPACK lapack PATHS ${LAPACK_LIB} NO_DEFAULT_PATH)
+find_library(BLAS openblas PATHS ${BLAS_LIB} NO_DEFAULT_PATH)
+
+# TODO Currently testing/interface is done in main.cpp it should be moved to src directory where everything defined for lp
+# Idea is to use this as linked library rather than header does it make sense!! lets see
+include_directories(./include)
 
 add_executable(linearprogramming main.cpp)
 
+target_link_libraries(${PROJECT_NAME}
+		      ${BOOST_LOG} ${BOOST_LOG_SETUP} ${BOOST_DATE_TIME}
+		      ${BOOST_SYSTEM} ${BOOST_THREAD}
+		      ${SS_CHOLMOD}
+		      ${SS_CONFIG}
+		      ${BLAS} ${LAPACK}
+		      ${METIS} ${SS_AMD} ${SS_CAMD} ${SS_COLAMD} ${SS_CCOLAMD}
+		      pthread )
+
 install(TARGETS linearprogramming RUNTIME DESTINATION bin)
+
