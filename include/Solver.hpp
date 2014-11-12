@@ -4,6 +4,8 @@
 // TODO What shall we name this type?
 //#define LinearSolver class
 
+#include <boost/log/trivial.hpp>
+
 #include <Eigen/Dense>
 
 #include <Problem.hpp>
@@ -20,18 +22,21 @@ class Solver {
  public:
   Solver(const Problem& problem) : problem(problem), linearSolver(problem) {
 
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> dummy;
+
     // Initial values
-    linearSolver.factor();
+    linearSolver.factor(dummy, dummy, lp::SolveFor::Initial);
 
     Eigen::VectorXd rhsX(problem.c.rows());
 
     rhsX.setZero();
 
-    linearSolver.solve(rhsX, problem.b, problem.h);
+    linearSolver.solve(rhsX, problem.b, problem.h, dummy,
+                       lp::SolveFor::Initial);
   }
 
  private:
-  const Problem problem;
+  const Problem& problem;
   LinearSolver linearSolver;
 };
 

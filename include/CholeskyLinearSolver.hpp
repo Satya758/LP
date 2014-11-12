@@ -9,6 +9,8 @@
 #include <Eigen/Sparse>
 
 #include <Problem.hpp>
+
+// FIXME Remove this object its over engineering
 // TODO Using namespace lp everywhere temporarly
 // maybe use better name
 namespace lp {
@@ -58,9 +60,9 @@ class CholeskyLinearSolver : boost::noncopyable {
     firstFactor = child()->compute(problem.G.transpose() *
                                    getCOmega<ScalingMatrix>(omega) * problem.G);
 
-    if(problem.A.size() != 0){
-	Eigen::SparseMatrix<double> firstFactorAsEigen = child()->getFactorAsEigen(firstFactor);
-
+    if (problem.A.size() != 0) {
+      Eigen::SparseMatrix<double> firstFactorAsEigen =
+          child()->getFactorAsEigen(firstFactor);
     }
   }
 

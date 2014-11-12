@@ -2,6 +2,7 @@
 #define SUITESPARSE_CHOLESKYLLT_HPP
 
 #include <boost/log/trivial.hpp>
+#include <boost/mpl/int.hpp>
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
@@ -9,8 +10,17 @@
 
 #include <Problem.hpp>
 
-// TODO Define new namespace
+namespace lp {
 
+// TODO Define new namespace
+// TODO Handling different use cases is becoming complex, has to find better way
+// for clean code
+// TODO Review with peers to make code clean
+
+template <const lp::SolveFor solveFor>
+class EnumToType {
+
+};
 /**
  *Extending Eigen Cholmod wrapper as Eigen does not expose factor after
  *computing step, which is required in our use case with different inequality
@@ -32,7 +42,9 @@ class CholmodSupernodalLLTWithFactor
   // Free the variables that are created
   void compute(const Eigen::SparseMatrix<double>& matrix) {
     Base::compute(matrix);
-
+    // factor is copied as it is lost for next compute
+    // Only used when there are equality constraints in problem
+    // See template secialization to achive this
     m_cholmodFactor_old =
         cholmod_copy_factor(Base::m_cholmodFactor, &Base::cholmod());
   }
@@ -40,10 +52,11 @@ class CholmodSupernodalLLTWithFactor
   // copy old factor using cholmod_copy_factor reason is
   // as compute is used again to factor new lhs, old factor
   // is lost
-  Eigen::MappedSparseMatrix<double> getCholmodFactorAsEigen() {
+  Eigen::MappedSparseMatrix<double> getFactorAsEigen() {
 
     if (!m_cholmodFactor_old) {
-      BOOST_LOG_TRIVIAL(error) << "Somthing wrong in creating factor";
+      BOOST_LOG_TRIVIAL(error)
+          << "Somthing wrong in creating/caching old factor";
     }
 
     Eigen::MappedSparseMatrix<double, Eigen::ColMajor, int> cholmodFactor(
@@ -57,6 +70,7 @@ class CholmodSupernodalLLTWithFactor
 
   // Solves with custom factor
   // Copied from Eigen::CholmodSupport _solve method
+  // TODO Had to find a better way!
   Eigen::VectorXd solveWithOldFactor(Eigen::VectorXd& rhs) {
     eigen_assert(m_factorizationIsOk &&
                  "The decomposition is not in a valid state for solving, you "
@@ -95,6 +109,7 @@ class CholmodSupernodalLLTWithFactor
  private:
   cholmod_factor* m_cholmodFactor_old = NULL;
 };
+
 /**
  *SuiteSparse cholmod
  *TODO Move below comment to IPM algorithm class
@@ -125,42 +140,44 @@ class SuiteSparseCholeskyLLT {
   // find y
   // First find y, then x and finally z
   // Diagonal Scaling matrix is only good for Linear programming
-  void factor(Eigen::DiagonalMatrix<double, Eigen::Dynamic> scalingMatrix) {
-    BOOST_LOG_TRIVIAL(info) << "Factorization";
-  }
+  void factor(
+      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrix,
+      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
+      constexpr lp::SolveFor solveFor) {
+    BOOST_LOG_TRIVIAL(info) << "Step directions Factorization";
 
-  // When calculating Initial points use this method as scaling matrix is
-  // Identity matrix
-  // Q. Why another method instead of above method?
-  // A. Performance...We dont have to check for identity condition and interface
-  // is clean (ofcourse you have to understand algorithm to see clean
-  // interface :-) ).
-  // Use this when scaling matrix is identity matrix
-  void factor() {
-
-    // First delete any objects from previous iteration
-    // this should be done in another factor as well
-    // TODO How do we avoid this duplication?
+    // TODO Duplication of code how do we avoid it!?
     solver.free();
+    // First compute G' * W{-1} and store it
+    omega = getOmega(scalingMatrixInverse, EnumToType<solveFor>());
+     //omegaTilde =
+       //  getOmegaTilde(scalingMatrixInverse, boost::mpl::int_<lp::SolveFor::Initial>());
 
-    forInitial = true;
-    // Factor G' * G
-    solver.compute(problem.G.transpose() * problem.G);
-    // Check for existence of equality constaints
     if (problem.A.size() != 0) {
+      // Factor G' * W{-1} * W{-T} * G
+      solver.compute(omega * omega.transpose());
       // Returns L
-      inequalityFactor = solver.getCholmodFactorAsEigen();
+      inequalityFactor = solver.getFactorAsEigen();
 
       // L{-1} * A'
       // solve does not exist for sparse matrix, using solveInPlace, but
       // solveInPlace does not allow Eigen::OnTheLeft flag!
+      // TODO There is some problem when problem.A.transpose() is used directly
+      // in solveInPlace method instead of temporary
+      // inequalityLInverseATranspose
+      // TODO Invoke lazy evaluation if creating temporary variable is pain
+      // Check http://eigen.tuxfamily.org/dox/TopicLazyEvaluation.html
       inequalityLInverseATranspose = problem.A.transpose();
-
+      // TODO FIXME Instead of using traingular solve use cholmod_solve check
+      // documentation
+      // https://www.cise.ufl.edu/research/sparse/cholmod/CHOLMOD/Doc/UserGuide.pdf
       inequalityFactor.triangularView<Eigen::Lower>().solveInPlace(
           inequalityLInverseATranspose);
       // Compute A * L{-T} * L{-1} * A'
       solver.compute(inequalityLInverseATranspose.transpose() *
                      inequalityLInverseATranspose);
+    } else {
+      solver.compute(omega * omega.transpose());
     }
 
     if (solver.info() != Eigen::Success) {
@@ -181,67 +198,103 @@ class SuiteSparseCholeskyLLT {
   // (L * L') * x = rhsX + G' * W{-1} * W{-T} * rhsZ + A' * (rhsY - y)
   // finally calculate z
   // z = W{-1} * W{-T} * (G*x - rhsZ)
-  void solve(const Eigen::VectorXd& rhsX, const Eigen::VectorXd& rhsY,
-             const Eigen::VectorXd& rhsZ) {
-    // TODO Refactor after testing
-    Eigen::VectorXd x;
-    Eigen::VectorXd y;
-    Eigen::VectorXd z;
-    // TODO Initial would not work, i.e. when do we turn off flag after solve...
-    // No as solve for initial can be called for multiple sides
-    if (forInitial) {
-      if (problem.A.size() != 0) {
-        {
-          // L{-1} * (rhsX + G' * W{-1} * W{-T} * rhsZ + A' * rhsY)
-          Eigen::VectorXd subRhs = rhsX + problem.G.transpose() * rhsZ +
-                                   problem.A.transpose() * rhsY;
-          inequalityFactor.triangularView<Eigen::Lower>().solveInPlace(subRhs);
+  lp::NewtonDirection solve(
+      const Eigen::VectorXd& rhsX, const Eigen::VectorXd& rhsY,
+      const Eigen::VectorXd& rhsZ,
+      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
+      const lp::SolveFor solveFor) const {
 
-          Eigen::VectorXd rhs =
-              inequalityLInverseATranspose.transpose() * subRhs - rhsY;
-          y = solver.solve(rhs);
-        }
-        {
-          // rhsX + G' * W{-1} * W{-T} * rhsZ + A' * (rhsY - y)
-          Eigen::VectorXd rhs = rhsX + problem.G.transpose() * rhsZ +
-                                problem.A.transpose() * (rhsY - y);
+    lp::NewtonDirection direction;
 
-          x = solver.solveWithOldFactor(rhs);
-        }
-        { z = problem.G * x - rhsZ; }
-      } else {
-        {
-          // rhsX + G' * W{-1} * W{-T} * rhsZ + A' * (rhsY - y)
-          Eigen::VectorXd rhs = rhsX + problem.G.transpose() * rhsZ;
+    if (problem.A.size() != 0) {
+      {
+        // L{-1} * (rhsX + G' * W{-1} * W{-T} * rhsZ + A' * rhsY)
+        Eigen::VectorXd subRhs =
+            rhsX + omegaTilde * rhsZ + problem.A.transpose() * rhsY;
+        inequalityFactor.triangularView<Eigen::Lower>().solveInPlace(subRhs);
 
-          x = solver.solve(rhs);
-        }
-        { z = problem.G * x - rhsZ; }
+        Eigen::VectorXd rhs =
+            inequalityLInverseATranspose.transpose() * subRhs - rhsY;
+        direction.y = solver.solve(rhs);
       }
+      {
+        // rhsX + G' * W{-1} * W{-T} * rhsZ + A' * (rhsY - y)
+        Eigen::VectorXd rhs = rhsX + omegaTilde * rhsZ +
+                              problem.A.transpose() * (rhsY - direction.y);
+        // Removing constantness just for this call
+        direction.x = const_cast<SuiteSparseCholeskyLLT*>(this)
+                          ->solver.solveWithOldFactor(rhs);
+      }
+      { direction.z = problem.G * direction.x - rhsZ; }
+    } else {
+      {
+        // rhsX + G' * W{-1} * W{-T} * rhsZ + A' * (rhsY - y)
+        Eigen::VectorXd rhs = rhsX + problem.G.transpose() * rhsZ;
+
+        direction.x = solver.solve(rhs);
+      }
+      { direction.z = problem.G * direction.x - rhsZ; }
     }
 
-    BOOST_LOG_TRIVIAL(info) << x;
-    BOOST_LOG_TRIVIAL(info) << z;
+    // TODO Is there way to enable this if condition during compile time
+    // enable_if only works for methods not conditional statements
+    if (solveFor == lp::SolveFor::StepDirection) {
+      // TODO check why below statement fails
+      // direction.z = scalingMatrixInverse * scalingMatrixInverse *
+      // direction.z;
+    }
+
+    return direction;
   }
 
  private:
-  lp::Problem problem;
+  // G'
+  Eigen::SparseMatrix<double> getOmega(
+      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
+     EnumToType<lp::SolveFor::Initial>) const {
+    // TODO For initial, G Transpose is done twice unnecesarly
+    // but I think its OK, as it is only one time, for the convinience of code
+    return problem.G.transpose();
+  }
+
+  // G' * W{-1}
+  Eigen::SparseMatrix<double> getOmega(
+      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
+      EnumToType<lp::SolveFor::StepDirection>) const {
+    return problem.G.transpose() * scalingMatrixInverse;
+  }
+
+  // G' * W{-1} * W{-T}
+  // For initial its just G'
+  Eigen::SparseMatrix<double> getOmegaTilde(
+      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
+      boost::mpl::int_<lp::SolveFor::Initial>) const {
+    return problem.G.transpose();
+  }
+
+  // G' * W{-1} * W{-T}
+  // Transpose of diagonal matrix alters nothing
+  Eigen::SparseMatrix<double> getOmegaTilde(
+      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
+      boost::mpl::int_<lp::SolveFor::StepDirection>) const {
+    return omega * scalingMatrixInverse;
+  }
+
+  const lp::Problem& problem;
   // Custom Solver
   CholmodSupernodalLLTWithFactor solver;
   // All below variables are used to store intermediate results to avoid
-  // repeated calculations or copies
-  // Indication for solve method to use rhsZCoefficient or not
-  // TODO I dont think forInitial will work
-  bool forInitial;
-  // W{-1}
-  Eigen::DiagonalMatrix<double, Eigen::Dynamic> scalingMatrixInverse;
-  // G' * W{-1} * W{-T}
-  Eigen::SparseMatrix<double> rhsZCoefficient;
+  // repeated calculations or copies (Product computaions are coslty)
+
+  // G' * W{-1} * W{-T} Should be used in multiple solves to solve
+  Eigen::SparseMatrix<double> omegaTilde;  // rhsZCoefficient;
   // L
   Eigen::SparseMatrix<double> inequalityFactor;
-  // L{-1} * A' // TODO May be this object is better maintained by
-  // CholmodSupernodalLLTWithFactor object
+  // L{-1} * A'
   Eigen::SparseMatrix<double> inequalityLInverseATranspose;
+  // G' * W{-1} Lets call it Omega
+  Eigen::SparseMatrix<double> omega;
 };
+}
 
 #endif  // SUITESPARSE_CHOLESKYLLT_HPP

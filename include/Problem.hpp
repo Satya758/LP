@@ -9,6 +9,13 @@
 // TODO Change to relavent namespace later
 namespace lp {
 
+// Template specialization for solve method (instead of boolean flag)
+// May be its too much
+enum SolveFor {
+  Initial = 1,
+  StepDirection = 2
+};
+
 /**
  *Defines the problem and options to solver
  *
@@ -75,6 +82,21 @@ class Problem {
 
   // TODO Some more Options
 };
-}
 
+// TODO Check if we can move this class to different header
+// Solution after newton step computed
+// Helper class to transfer NewtonDirection to IPM algorithm
+class NewtonDirection {
+ public:
+  // Variable names of solution are given in generic names such as x, y, z
+  // As solution is for 3 X 3 block matrix we have three dense vectors denoting
+  // that
+  // Case when equality constraints are not present then y is not used
+  // computations
+  // TODO Check when y is not used
+  Eigen::VectorXd x;
+  Eigen::VectorXd y;
+  Eigen::VectorXd z;
+};
+}
 #endif  // PROBLEM_HPP

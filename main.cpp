@@ -43,6 +43,6 @@ int main(int argc, char **argv) {
   // lp::Problem problem(5, 5, 5);
   // TODO Internal is used but should not be
   // Refactor after testing
-  lp::internal::Solver<SuiteSparseCholeskyLLT> solver(getInequalityTest());
+  lp::internal::Solver<lp::SuiteSparseCholeskyLLT> solver(getInequalityTest());
   return 0;
 }
