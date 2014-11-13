@@ -25,14 +25,14 @@ class Solver {
     Eigen::DiagonalMatrix<double, Eigen::Dynamic> dummy;
 
     // Initial values
-    linearSolver.factor(dummy, dummy, lp::SolveFor::Initial);
+    linearSolver.template factor<lp::SolveFor::Initial>(dummy, dummy);
 
     Eigen::VectorXd rhsX(problem.c.rows());
 
     rhsX.setZero();
 
-    linearSolver.solve(rhsX, problem.b, problem.h, dummy,
-                       lp::SolveFor::Initial);
+    linearSolver.template solve<lp::SolveFor::Initial>(
+        rhsX, problem.b, problem.h, dummy);
   }
 
  private:

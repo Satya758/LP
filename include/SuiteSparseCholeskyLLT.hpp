@@ -17,10 +17,6 @@ namespace lp {
 // for clean code
 // TODO Review with peers to make code clean
 
-template <const lp::SolveFor solveFor>
-class EnumToType {
-
-};
 /**
  *Extending Eigen Cholmod wrapper as Eigen does not expose factor after
  *computing step, which is required in our use case with different inequality
@@ -140,18 +136,19 @@ class SuiteSparseCholeskyLLT {
   // find y
   // First find y, then x and finally z
   // Diagonal Scaling matrix is only good for Linear programming
+  template <lp::SolveFor solveFor>
   void factor(
       const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrix,
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
-      constexpr lp::SolveFor solveFor) {
+      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>&
+          scalingMatrixInverse) {
     BOOST_LOG_TRIVIAL(info) << "Step directions Factorization";
 
     // TODO Duplication of code how do we avoid it!?
     solver.free();
     // First compute G' * W{-1} and store it
-    omega = getOmega(scalingMatrixInverse, EnumToType<solveFor>());
-     //omegaTilde =
-       //  getOmegaTilde(scalingMatrixInverse, boost::mpl::int_<lp::SolveFor::Initial>());
+    omega = getOmega(scalingMatrixInverse, boost::mpl::int_<solveFor>());
+    omegaTilde =
+        getOmegaTilde(scalingMatrixInverse, boost::mpl::int_<solveFor>());
 
     if (problem.A.size() != 0) {
       // Factor G' * W{-1} * W{-T} * G
@@ -198,11 +195,12 @@ class SuiteSparseCholeskyLLT {
   // (L * L') * x = rhsX + G' * W{-1} * W{-T} * rhsZ + A' * (rhsY - y)
   // finally calculate z
   // z = W{-1} * W{-T} * (G*x - rhsZ)
+  template <lp::SolveFor solveFor>
   lp::NewtonDirection solve(
       const Eigen::VectorXd& rhsX, const Eigen::VectorXd& rhsY,
       const Eigen::VectorXd& rhsZ,
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
-      const lp::SolveFor solveFor) const {
+      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse)
+      const {
 
     lp::NewtonDirection direction;
 
@@ -251,7 +249,7 @@ class SuiteSparseCholeskyLLT {
   // G'
   Eigen::SparseMatrix<double> getOmega(
       const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
-     EnumToType<lp::SolveFor::Initial>) const {
+      boost::mpl::int_<lp::SolveFor::Initial>) const {
     // TODO For initial, G Transpose is done twice unnecesarly
     // but I think its OK, as it is only one time, for the convinience of code
     return problem.G.transpose();
@@ -260,7 +258,7 @@ class SuiteSparseCholeskyLLT {
   // G' * W{-1}
   Eigen::SparseMatrix<double> getOmega(
       const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
-      EnumToType<lp::SolveFor::StepDirection>) const {
+      boost::mpl::int_<lp::SolveFor::StepDirection>) const {
     return problem.G.transpose() * scalingMatrixInverse;
   }
 
