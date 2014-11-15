@@ -33,6 +33,7 @@ namespace lp {
  *As performace is utmost importance second option is chosen
  *
  */
+template <typename Scalings>
 class SuiteSparseCholeskyLLT {
 
  public:
@@ -46,17 +47,16 @@ class SuiteSparseCholeskyLLT {
   // find y
   // First find y, then x and finally z
   // Diagonal Scaling matrix is only good for Linear programming
-  // TODO Input is not anymore DiagonalMatrix but NTScalings object adapt!!
+  // TODO Input is not anymore DiagonalMatrix but Scalings object adapt!!
   template <lp::SolveFor solveFor>
-  void factor(const NTScalings& scaling) {
+  void factor(const Scalings& scalings) {
     BOOST_LOG_TRIVIAL(info) << "Step directions Factorization";
 
     // First compute G' * W{-1} and store it
-    omega = getOmega(scalingMatrixInverse, boost::mpl::int_<solveFor>());
+    omega = getOmega(scalings, boost::mpl::int_<solveFor>());
 
     // Used in solve method, cached as it is used multiple times
-    omegaTilde =
-        getOmegaTilde(scalingMatrixInverse, boost::mpl::int_<solveFor>());
+    omegaTilde = getOmegaTilde(scalings, boost::mpl::int_<solveFor>());
 
     solver.compute(omega * omega.transpose());
 
@@ -79,11 +79,10 @@ class SuiteSparseCholeskyLLT {
   // finally calculate z
   // z = W{-1} * W{-T} * (G*x - rhsZ)
   template <lp::SolveFor solveFor>
-  lp::NewtonDirection solve(
-      const Eigen::VectorXd& rhsX, const Eigen::VectorXd& rhsY,
-      const Eigen::VectorXd& rhsZ,
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse)
-      const {
+  lp::NewtonDirection solve(const Eigen::VectorXd& rhsX,
+                            const Eigen::VectorXd& rhsY,
+                            const Eigen::VectorXd& rhsZ,
+                            const Scalings& scalings) const {
 
     lp::NewtonDirection direction;
 
@@ -94,8 +93,8 @@ class SuiteSparseCholeskyLLT {
       direction.x = solver.solve(rhs);
     }
     {
-      direction.z = computeWZ(scalingMatrixInverse, direction, rhsZ,
-                              boost::mpl::int_<solveFor>());
+      direction.z =
+          computeWZ(scalings, direction, rhsZ, boost::mpl::int_<solveFor>());
     }
 
     return direction;
@@ -104,8 +103,7 @@ class SuiteSparseCholeskyLLT {
  private:
   // G'
   Eigen::SparseMatrix<double> getOmega(
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
-      boost::mpl::int_<lp::SolveFor::Initial>) const {
+      const Scalings& scalings, boost::mpl::int_<lp::SolveFor::Initial>) const {
     // TODO For initial, G Transpose is done twice unnecesarly
     // but I think its OK, as it is only one time, for the convinience of code
     return problem.G.transpose();
@@ -113,40 +111,39 @@ class SuiteSparseCholeskyLLT {
 
   // G' * W{-1}
   Eigen::SparseMatrix<double> getOmega(
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
+      const Scalings& scalings,
       boost::mpl::int_<lp::SolveFor::StepDirection>) const {
-    return problem.G.transpose() * scalingMatrixInverse;
+    return problem.G.transpose() * scalings.NNOInverse.asDiagonal();
   }
 
   // G' * W{-1} * W{-T}
   // For initial its just G'
   Eigen::SparseMatrix<double> getOmegaTilde(
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
-      boost::mpl::int_<lp::SolveFor::Initial>) const {
+      const Scalings& scalings, boost::mpl::int_<lp::SolveFor::Initial>) const {
     return problem.G.transpose();
   }
 
   // G' * W{-1} * W{-T}
   // Transpose of diagonal matrix alters nothing
   Eigen::SparseMatrix<double> getOmegaTilde(
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
+      const Scalings& scalings,
       boost::mpl::int_<lp::SolveFor::StepDirection>) const {
-    return omega * scalingMatrixInverse;
+    return omega * scalings.NNOInverse.asDiagonal();
   }
 
   // Wz = W{-T} * (G*x - rhsz)
   Eigen::VectorXd computeWZ(
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
-      const lp::NewtonDirection& direction, const Eigen::VectorXd& rhsZ,
+      const Scalings& scalings, const lp::NewtonDirection& direction,
+      const Eigen::VectorXd& rhsZ,
       boost::mpl::int_<lp::SolveFor::StepDirection>) const {
-    return scalingMatrixInverse * problem.G * direction.x - rhsZ;
+    return scalings.NNOInverse.asDiagonal() * problem.G * direction.x - rhsZ;
   }
 
   // Wz = W{-T} * (G*x - rhsz)
-  Eigen::VectorXd computeWZ(
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrixInverse,
-      const lp::NewtonDirection& direction, const Eigen::VectorXd& rhsZ,
-      boost::mpl::int_<lp::SolveFor::Initial>) const {
+  Eigen::VectorXd computeWZ(const Scalings& scalings,
+                            const lp::NewtonDirection& direction,
+                            const Eigen::VectorXd& rhsZ,
+                            boost::mpl::int_<lp::SolveFor::Initial>) const {
     return problem.G * direction.x - rhsZ;
   }
 

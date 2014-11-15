@@ -2,9 +2,10 @@
 #include <boost/log/trivial.hpp>
 
 #include <Problem.hpp>
-#include <Solver.hpp>
+#include <Core/Solver.hpp>
 
-#include <SuiteSparseCholeskyLLT.hpp>
+#include <Ext/NTScalings.hpp>
+#include <Ext/SuiteSparseCholeskyLLT.hpp>
 
 // Had to find with equality constraints as well, this is where
 // lot of mumbo jumbo of code is present
@@ -44,7 +45,8 @@ int main(int argc, char **argv) {
   // TODO Internal is used but should not be
   // Refactor after testing
   lp::Problem problem = getInequalityTest();
-  lp::internal::Solver<lp::SuiteSparseCholeskyLLT> solver(problem);
+  lp::Solver<lp::SuiteSparseCholeskyLLT<lp::NTScalings>, lp::NTScalings> solver(
+      problem);
 
   solver.solve();
   return 0;
