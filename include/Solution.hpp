@@ -109,6 +109,36 @@ std::ostream& operator<<(std::ostream& out, const Point& point) {
   out << "##################### Point End" << endl;
 }
 
+/**
+ * Neterov-Todd (NT) scaling is used
+ * TODO Solver can accepts scaling as template which can implement any scaling
+ * problem demands in future, but for now let us hardcode scaling object in
+ * Solver
+ *
+ * TODO Find home(header) and namespace for this class
+ * TODO FIXME Check if using DiagonalWrapper reduces copy of vector into
+ * DiagonalMatrix
+ * TODO Though semantically NNO Scaling is diagonal in here they are represented
+ * as Vectors
+ * LinearSolvers should be aware of this and may be use DiagonalWrapper in
+ * expressions
+ */
+class NTScalings {
+
+ public:
+  NTScalings(const Point& point)
+      : NNO((point.s.cwiseQuotient(point.z)).cwiseSqrt()),
+        NNOInverse(NNO.cwiseInverse()),
+        NNOLambda((point.s.cwiseProduct(point.z)).cwiseSqrt()) {}
+  // NNO -- NonNegativeOrthant, these are DiagonalMatrix but stored as Vectors
+  const Eigen::VectorXd NNO;
+  const Eigen::VectorXd NNOInverse;
+  const Eigen::VectorXd NNOLambda;
+};
+
+/**
+ * Calculates residual, tolerant values
+ */
 class Residual {
  public:
   // Compute residual for given point
@@ -281,7 +311,8 @@ SolverState getSolverState(const Residual& residual,
   }
 }
 /**
- * Contains Residual and final Point (Point can be made internal as point is copied(moved) to solution)
+ * Contains Residual and final Point (Point can be made internal as point is
+ * copied(moved) to solution)
  */
 class Solution {};
 }

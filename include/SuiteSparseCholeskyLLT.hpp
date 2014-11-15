@@ -46,11 +46,9 @@ class SuiteSparseCholeskyLLT {
   // find y
   // First find y, then x and finally z
   // Diagonal Scaling matrix is only good for Linear programming
+  // TODO Input is not anymore DiagonalMatrix but NTScalings object adapt!!
   template <lp::SolveFor solveFor>
-  void factor(
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& scalingMatrix,
-      const Eigen::DiagonalMatrix<double, Eigen::Dynamic>&
-          scalingMatrixInverse) {
+  void factor(const NTScalings& scaling) {
     BOOST_LOG_TRIVIAL(info) << "Step directions Factorization";
 
     // First compute G' * W{-1} and store it
