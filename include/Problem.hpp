@@ -12,8 +12,8 @@ namespace lp {
 // Template specialization for solve method (instead of boolean flag)
 // May be its too much
 enum SolveFor {
-  Initial = 1,
-  StepDirection = 2
+  Initial,
+  StepDirection
 };
 
 /**

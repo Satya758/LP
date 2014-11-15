@@ -30,8 +30,8 @@ lp::Problem getInequalityTest() {
   problem.G.insert(3, 0) = 1;
   problem.G.insert(3, 1) = -2;
 
-  problem.G = problem.G * 1;
-  BOOST_LOG_TRIVIAL(info) << problem.c;
+  //   problem.G = problem.G * 1;
+  //   BOOST_LOG_TRIVIAL(info) << problem.G.transpose();
 
   return problem;
 }
@@ -43,6 +43,9 @@ int main(int argc, char **argv) {
   // lp::Problem problem(5, 5, 5);
   // TODO Internal is used but should not be
   // Refactor after testing
-  lp::internal::Solver<lp::SuiteSparseCholeskyLLT> solver(getInequalityTest());
+  lp::Problem problem = getInequalityTest();
+  lp::internal::Solver<lp::SuiteSparseCholeskyLLT> solver(problem);
+
+  solver.solve();
   return 0;
 }

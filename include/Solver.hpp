@@ -10,6 +10,8 @@
 
 #include <Problem.hpp>
 
+#include <Solution.hpp>
+
 namespace lp {
 namespace internal {
 
@@ -17,22 +19,18 @@ namespace internal {
  *Solves Convex problems
  *Linear solver is provided as template argument
  */
-template <class LinearSolver>
+template <typename LinearSolver>
 class Solver {
  public:
-  Solver(const Problem& problem) : problem(problem), linearSolver(problem) {
+  Solver(const Problem& problem) : problem(problem), linearSolver(problem) {}
 
-    Eigen::DiagonalMatrix<double, Eigen::Dynamic> dummy;
+  /**
+   *
+   */
+  void solve() {
+    Point initialPoint(this->problem, linearSolver);
 
-    // Initial values
-    linearSolver.template factor<lp::SolveFor::Initial>(dummy, dummy);
-
-    Eigen::VectorXd rhsX(problem.c.rows());
-
-    rhsX.setZero();
-
-    linearSolver.template solve<lp::SolveFor::Initial>(
-        rhsX, problem.b, problem.h, dummy);
+    BOOST_LOG_TRIVIAL(info) << initialPoint;
   }
 
  private:
