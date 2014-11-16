@@ -36,6 +36,16 @@ class NTScalings {
   const Eigen::VectorXd NNOInverse;
   const Eigen::VectorXd NNOLambda;
 };
+
+std::ostream& operator<<(std::ostream& out, const NTScalings& scalings) {
+  using namespace std;
+
+  out << endl << "##################### NTScalings Start" << endl;
+  out << "Value of NNO: " << endl << scalings.NNO << endl;
+  out << "Value of NNOInverse: " << endl << scalings.NNOInverse << endl;
+  out << "Value of NNOLambda: " << endl << scalings.NNOLambda << endl;
+  out << "##################### NTScalings End" << endl;
+}
 }
 
 #endif  // NT_SCALINGS_HPP

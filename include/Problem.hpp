@@ -49,17 +49,17 @@ class Problem {
   // Problem constructor forces to enter dimensions to have valid entries for
   // all related matrices
   Problem(int inequalityRows, int equalityRows, int cols,
-          int maxIterations = 100, double relativeGapTolerance = 1e-6,
-          double gapTolerance = 1e-7, double residualTolerance = 1e-7)
+          int maxIterations_ = 100, double relativeGapTolerance_ = 1e-6,
+          double gapTolerance_ = 1e-7, double residualTolerance_ = 1e-7)
       : G(inequalityRows, cols),
         h(inequalityRows),
         A(equalityRows, cols),
         b(equalityRows),
         c(cols),
-        maxIterations(maxIterations),
-        relativeGapTolerance(relativeGapTolerance),
-        gapTolerance(gapTolerance),
-        residualTolerance(residualTolerance) {}
+        maxIterations(maxIterations_),
+        relativeGapTolerance(relativeGapTolerance_),
+        gapTolerance(gapTolerance_),
+        residualTolerance(residualTolerance_) {}
   // Objective to minimize
   Eigen::VectorXd c;
   // Inequality constraints
@@ -98,5 +98,15 @@ class NewtonDirection {
   Eigen::VectorXd y;
   Eigen::VectorXd z;
 };
+
+std::ostream& operator<<(std::ostream& out, const NewtonDirection& direction) {
+  using namespace std;
+
+  out << endl << "##################### NewtonDirection Start" << endl;
+  out << "Value of x: " << endl << direction.x << endl;
+  out << "Value of y: " << endl << direction.y << endl;
+  out << "Value of z: " << endl << direction.z << endl;
+  out << "##################### NewtonDirection End" << endl;
+}
 }
 #endif  // PROBLEM_HPP

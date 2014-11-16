@@ -52,13 +52,15 @@ class SuiteSparseCholeskyLLT {
   void factor(const Scalings& scalings) {
     BOOST_LOG_TRIVIAL(info) << "Step directions Factorization";
 
-    // First compute G' * W{-1} and store it
+    // First compute G * W{-T} and store it
+    // Used also to compute omegaTilde
     omega = getOmega(scalings, boost::mpl::int_<solveFor>());
 
     // Used in solve method, cached as it is used multiple times
     omegaTilde = getOmegaTilde(scalings, boost::mpl::int_<solveFor>());
 
-    solver.compute(omega * omega.transpose());
+    // G' * W{-1} * W{-T} * G
+    solver.compute(omega.transpose() * omega);
 
     if (solver.info() != Eigen::Success) {
       // TODO Raise exception maybe Matrix is singular
@@ -101,19 +103,19 @@ class SuiteSparseCholeskyLLT {
   }
 
  private:
-  // G'
+  // G
   Eigen::SparseMatrix<double> getOmega(
       const Scalings& scalings, boost::mpl::int_<lp::SolveFor::Initial>) const {
     // TODO For initial, G Transpose is done twice unnecesarly
     // but I think its OK, as it is only one time, for the convinience of code
-    return problem.G.transpose();
+    return problem.G;
   }
 
-  // G' * W{-1}
+  // W{-T} * G
   Eigen::SparseMatrix<double> getOmega(
       const Scalings& scalings,
       boost::mpl::int_<lp::SolveFor::StepDirection>) const {
-    return problem.G.transpose() * scalings.NNOInverse.asDiagonal();
+    return scalings.NNOInverse.asDiagonal() * problem.G;
   }
 
   // G' * W{-1} * W{-T}
@@ -128,7 +130,7 @@ class SuiteSparseCholeskyLLT {
   Eigen::SparseMatrix<double> getOmegaTilde(
       const Scalings& scalings,
       boost::mpl::int_<lp::SolveFor::StepDirection>) const {
-    return omega * scalings.NNOInverse.asDiagonal();
+    return omega.transpose() * scalings.NNOInverse.asDiagonal();
   }
 
   // Wz = W{-T} * (G*x - rhsz)
@@ -136,7 +138,7 @@ class SuiteSparseCholeskyLLT {
       const Scalings& scalings, const lp::NewtonDirection& direction,
       const Eigen::VectorXd& rhsZ,
       boost::mpl::int_<lp::SolveFor::StepDirection>) const {
-    return scalings.NNOInverse.asDiagonal() * problem.G * direction.x - rhsZ;
+    return scalings.NNOInverse.asDiagonal() * (problem.G * direction.x - rhsZ);
   }
 
   // Wz = W{-T} * (G*x - rhsz)

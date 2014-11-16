@@ -5,6 +5,8 @@
 #include <climits>
 #include <algorithm>
 
+#include <boost/log/trivial.hpp>
+
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
@@ -15,19 +17,55 @@
 namespace lp {
 
 /**
+ * find alpha = inf{alpha| vector + alpha * e >= 0 }
+ * e is vector of ones of same dimension as vector
+ * >= is defined for each element in vector
+ * alpha can be computed by finding minimum element, which when added to vector
+ *land at zero
+ *
+ * So max step that can be taken before breaching condition
+ *
+ * For SOCP and SDP there is much more to do (Only works for LP) as vector is
+ *normalized in SOCP and SDP
+ */
+double getMaxStep(const Eigen::VectorXd& vector) { return -vector.minCoeff(); }
+
+/**
  * Calculates residual, tolerant values
  */
 class Residual {
+  // Declared in the same order as required initilization, see constructor
+  // initilization
+  // Here residualX... and subResidualX... are required before computing public
+  // variables
+ private:
+  double residualX0;
+  double residualY0;
+  double residualZ0;
+
+  // A*x
+  Eigen::VectorXd subResidualY;
+  // s + G*x
+  Eigen::VectorXd subResidualZ;
+  // -A'*y - G'*z
+  Eigen::VectorXd subResidualX;
+
  public:
   // Compute residual for given point
-  Residual(const Problem& problem, const Point& point, int iterations)
-      : residualX0(std::max(1.0, problem.c.norm())),
-        residualY0(std::max(1.0, problem.b.norm())),
-        residualZ0(std::max(1.0, problem.h.norm())),
+  Residual(const Problem& problem, const Point& point, int iterations,
+           const double residualX0, const double residualY0,
+           const double residualZ0)
+      : residualX0(residualX0),
+        residualY0(residualY0),
+        residualZ0(residualZ0),
         subResidualY(problem.A * point.x),
         subResidualZ(point.s + problem.G * point.x),
         subResidualX(-problem.A.transpose() * point.y -
                      problem.G.transpose() * point.z),
+        residualX(getResidualX(problem, point)),
+        residualY(getResidualX(problem, point)),
+        residualZ(getResidualX(problem, point)),
+        residualTau(getResidualTau(problem, point)),
         gap(point.s.dot(point.z)),
         primalObjective(problem.c.dot(point.x) / point.tau),
         dualObjective(-(problem.b.dot(point.y) + problem.h.dot(point.z)) /
@@ -38,8 +76,8 @@ class Residual {
         primalInfeasibility(getPrimalInfeasibility(problem, point)),
         dualInfeasibility(getDualInfeasibility(problem, point)),
         iterations(iterations),
-        primalSlack(-point.s.minCoeff()),
-        dualSlack(-point.z.minCoeff()) {}
+        primalSlack(getMaxStep(point.s)),
+        dualSlack(getMaxStep(point.z)) {}
 
   // Compute Accepted Tolerence residual
   Residual(const Problem& problem)
@@ -53,16 +91,25 @@ class Residual {
         primalInfeasibility(problem.residualTolerance),
         dualInfeasibility(problem.residualTolerance),
         primalObjective(0),
-        dualObjective(0) {}
+        dualObjective(0),
+        // Initializing irrevelant vectors in this scenario with least int to
+        // avoid performance hit
+        residualX(1),
+        residualY(1),
+        residualZ(1),
+        residualTau(1) {}
+
+  const Eigen::VectorXd residualX;
+  const Eigen::VectorXd residualY;
+  const Eigen::VectorXd residualZ;
+  const double residualTau;
 
   const double gap;
-  const double relativeGap;
-
-  const double primalSlack;
-  const double dualSlack;
 
   const double primalObjective;
   const double dualObjective;
+
+  const double relativeGap;
 
   const double primalResidual;
   const double dualResidual;
@@ -70,20 +117,12 @@ class Residual {
   const double primalInfeasibility;
   const double dualInfeasibility;
 
+  const double primalSlack;
+  const double dualSlack;
+
   const int iterations;
 
  private:
-  // A*x
-  Eigen::VectorXd subResidualY;
-  // s + G*x
-  Eigen::VectorXd subResidualZ;
-  // -A'*y - G'*z
-  Eigen::VectorXd subResidualX;
-
-  double residualX0;
-  double residualY0;
-  double residualZ0;
-
   double getRelativeGap() const {
     if (primalObjective < 0) {
       return gap / std::abs(primalObjective);
@@ -95,18 +134,38 @@ class Residual {
     }
   }
 
+  // -A'*y - G'*z - c*tau
+  Eigen::VectorXd getResidualX(const Problem& problem, const Point& point) {
+    return subResidualX - problem.c * point.tau;
+  }
+  //  A*x - b*tau
+  Eigen::VectorXd getResidualY(const Problem& problem, const Point& point) {
+    return subResidualY - problem.b * point.tau;
+  }
+  // s + G*x - h*tau
+  Eigen::VectorXd getResidualZ(const Problem& problem, const Point& point) {
+    return subResidualZ - problem.h * point.tau;
+  }
+  // kappa + c'*x + b'*y + h'*z
+  double getResidualTau(const Problem& problem, const Point& point) {
+    // FIXME c'*x and b'*y + h'*z are computed again for primalObjective and
+    // dualObjective
+    return point.kappa + problem.c.dot(point.x) + problem.b.dot(point.y) +
+           problem.h.dot(point.z);
+  }
+
   double getPrimalResidual(const Problem& problem, const Point& point) const {
     //  A*x - b*tau
-    double resY = ((subResidualY - problem.b * point.tau).norm()) / point.tau;
+    double resY = (residualY.norm()) / point.tau;
     // s + G*x - h*tau
-    double resZ = ((subResidualZ - problem.h * point.tau).norm()) / point.tau;
+    double resZ = (residualZ.norm()) / point.tau;
 
     return std::max(resY / residualY0, resZ / residualZ0);
   }
 
   double getDualResidual(const Problem& problem, const Point& point) const {
     // -A'*y - G'*z - c*tau
-    double resX = ((subResidualX - problem.c * point.tau).norm()) / point.tau;
+    double resX = (residualX.norm()) / point.tau;
 
     return resX / residualX0;
   }
@@ -118,7 +177,8 @@ class Residual {
     if (dualObjective > 0) {
       return (subResidualX.norm() * dualObjective) / residualX0;
     } else {
-      return 0;
+      // TODO Some large number, is it correct way!
+      return 100;
     }
   }
 
@@ -131,7 +191,8 @@ class Residual {
                       subResidualZ.norm() / residualZ0) /
              std::abs(primalObjective);
     } else {
-      return 0;
+      // TODO Some large number, is it correct way!
+      return 100;
     }
   }
 };
@@ -159,9 +220,10 @@ std::ostream& operator<<(std::ostream& out, const Residual& residual) {
 // Very restrictive use case
 bool operator<=(const Residual& lhs, const Residual& rhs) {
   return (lhs.primalResidual <= rhs.primalResidual &&
-              lhs.dualResidual <= rhs.dualResidual &&
-              (lhs.gap <= rhs.gap || lhs.relativeGap <= rhs.relativeGap) ||
-          lhs.iterations <= rhs.iterations);
+          lhs.dualResidual <= rhs.dualResidual &&
+          (lhs.gap <= rhs.gap || lhs.relativeGap <= rhs.relativeGap));
+  // TODO Had to consider maximumIterations reached
+  //|| lhs.iterations <= rhs.iterations);
 }
 
 // FIXME When problem is in Infeasible, values (Point & Residual) are changed
@@ -178,6 +240,19 @@ SolverState getSolverState(const Residual& residual,
                  tolerantResidual.primalInfeasibility ||
              residual.dualInfeasibility <= tolerantResidual.dualInfeasibility) {
     return SolverState::Infeasible;
+  } else {
+    return SolverState::InProgress;
+  }
+}
+
+// FIXME Remove this method after confirming that i do not need different way to
+// initial points
+SolverState getSolverStateForInitialPoint(const Residual& residual,
+                                          const Residual& tolerantResidual) {
+  if (residual.primalSlack <= 0 && residual.dualSlack <= 0 &&
+      (residual.gap <= tolerantResidual.gap ||
+       residual.relativeGap <= tolerantResidual.relativeGap)) {
+    return SolverState::Feasible;
   } else {
     return SolverState::InProgress;
   }
