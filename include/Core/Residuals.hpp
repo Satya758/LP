@@ -63,8 +63,8 @@ class Residual {
         subResidualX(-problem.A.transpose() * point.y -
                      problem.G.transpose() * point.z),
         residualX(getResidualX(problem, point)),
-        residualY(getResidualX(problem, point)),
-        residualZ(getResidualX(problem, point)),
+        residualY(getResidualY(problem, point)),
+        residualZ(getResidualZ(problem, point)),
         residualTau(getResidualTau(problem, point)),
         gap(point.s.dot(point.z)),
         primalObjective(problem.c.dot(point.x) / point.tau),
@@ -201,6 +201,10 @@ std::ostream& operator<<(std::ostream& out, const Residual& residual) {
   using namespace std;
 
   out << endl << "##################### Residual Start" << endl;
+  out << "Residual X : " << endl << residual.residualX << endl;
+  out << "Residual Y : " << endl << residual.residualY << endl;
+  out << "Residual Z : " << endl << residual.residualZ << endl;
+  out << "Residual Tau : " << endl << residual.residualTau << endl;
   out << "Duality Gap: " << residual.gap << endl;
   out << "Relative Gap: " << residual.relativeGap << endl;
   out << "Primal Slack: " << residual.primalSlack << endl;

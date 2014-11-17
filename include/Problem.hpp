@@ -9,9 +9,10 @@
 // TODO Change to relavent namespace later
 namespace lp {
 
+// Used in LinearSolver
 // Template specialization for solve method (instead of boolean flag)
-// May be its too much
-enum SolveFor {
+// May be its too much but its clean
+enum class SolveFor {
   Initial,
   StepDirection
 };

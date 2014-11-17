@@ -54,10 +54,11 @@ class SuiteSparseCholeskyLLT {
 
     // First compute G * W{-T} and store it
     // Used also to compute omegaTilde
-    omega = getOmega(scalings, boost::mpl::int_<solveFor>());
+    omega = getOmega(scalings, boost::mpl::int_<static_cast<int>(solveFor)>());
 
     // Used in solve method, cached as it is used multiple times
-    omegaTilde = getOmegaTilde(scalings, boost::mpl::int_<solveFor>());
+    omegaTilde =
+        getOmegaTilde(scalings, boost::mpl::int_<static_cast<int>(solveFor)>());
 
     // G' * W{-1} * W{-T} * G
     solver.compute(omega.transpose() * omega);
@@ -95,8 +96,8 @@ class SuiteSparseCholeskyLLT {
       direction.x = solver.solve(rhs);
     }
     {
-      direction.z =
-          computeWZ(scalings, direction, rhsZ, boost::mpl::int_<solveFor>());
+      direction.z = computeWZ(scalings, direction, rhsZ,
+                              boost::mpl::int_<static_cast<int>(solveFor)>());
     }
 
     return direction;
@@ -105,7 +106,8 @@ class SuiteSparseCholeskyLLT {
  private:
   // G
   Eigen::SparseMatrix<double> getOmega(
-      const Scalings& scalings, boost::mpl::int_<lp::SolveFor::Initial>) const {
+      const Scalings& scalings,
+      boost::mpl::int_<static_cast<int>(lp::SolveFor::Initial)>) const {
     // TODO For initial, G Transpose is done twice unnecesarly
     // but I think its OK, as it is only one time, for the convinience of code
     return problem.G;
@@ -114,14 +116,15 @@ class SuiteSparseCholeskyLLT {
   // W{-T} * G
   Eigen::SparseMatrix<double> getOmega(
       const Scalings& scalings,
-      boost::mpl::int_<lp::SolveFor::StepDirection>) const {
+      boost::mpl::int_<static_cast<int>(lp::SolveFor::StepDirection)>) const {
     return scalings.NNOInverse.asDiagonal() * problem.G;
   }
 
   // G' * W{-1} * W{-T}
   // For initial its just G'
   Eigen::SparseMatrix<double> getOmegaTilde(
-      const Scalings& scalings, boost::mpl::int_<lp::SolveFor::Initial>) const {
+      const Scalings& scalings,
+      boost::mpl::int_<static_cast<int>(lp::SolveFor::Initial)>) const {
     return problem.G.transpose();
   }
 
@@ -129,7 +132,7 @@ class SuiteSparseCholeskyLLT {
   // Transpose of diagonal matrix alters nothing
   Eigen::SparseMatrix<double> getOmegaTilde(
       const Scalings& scalings,
-      boost::mpl::int_<lp::SolveFor::StepDirection>) const {
+      boost::mpl::int_<static_cast<int>(lp::SolveFor::StepDirection)>) const {
     return omega.transpose() * scalings.NNOInverse.asDiagonal();
   }
 
@@ -137,15 +140,15 @@ class SuiteSparseCholeskyLLT {
   Eigen::VectorXd computeWZ(
       const Scalings& scalings, const lp::NewtonDirection& direction,
       const Eigen::VectorXd& rhsZ,
-      boost::mpl::int_<lp::SolveFor::StepDirection>) const {
+      boost::mpl::int_<static_cast<int>(lp::SolveFor::StepDirection)>) const {
     return scalings.NNOInverse.asDiagonal() * (problem.G * direction.x - rhsZ);
   }
 
   // Wz = W{-T} * (G*x - rhsz)
-  Eigen::VectorXd computeWZ(const Scalings& scalings,
-                            const lp::NewtonDirection& direction,
-                            const Eigen::VectorXd& rhsZ,
-                            boost::mpl::int_<lp::SolveFor::Initial>) const {
+  Eigen::VectorXd computeWZ(
+      const Scalings& scalings, const lp::NewtonDirection& direction,
+      const Eigen::VectorXd& rhsZ,
+      boost::mpl::int_<static_cast<int>(lp::SolveFor::Initial)>) const {
     return problem.G * direction.x - rhsZ;
   }
 

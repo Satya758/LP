@@ -17,6 +17,13 @@ namespace lp {
 
 class Point {
  public:
+  // TODO To use as dummy object is there any better way
+  Point() {}
+  // Used to create only z and tau object in Scalings getAffineDirection and
+  // getCombinedDirection methods
+  // As these vectors are dense objects, this approach would save memory by not
+  // creating zero vectors, TODO Had to check this hypothesis
+  Point(int zRows) : z(zRows) {}
   // Defines sizes, This is default
   Point(const Problem& problem)
       : x(problem.c.rows()),

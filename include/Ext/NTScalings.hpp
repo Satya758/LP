@@ -1,9 +1,14 @@
 #ifndef NT_SCALINGS_HPP
 #define NT_SCALINGS_HPP
 
+#include <boost/mpl/int.hpp>
+#include <boost/log/trivial.hpp>
+
 #include <Eigen/Dense>
 
 #include <Core/Point.hpp>
+#include <Core/Residuals.hpp>
+#include <Problem.hpp>
 
 namespace lp {
 /**
@@ -30,11 +35,79 @@ class NTScalings {
   NTScalings(const Point& point)
       : NNO((point.s.cwiseQuotient(point.z)).cwiseSqrt()),
         NNOInverse(NNO.cwiseInverse()),
-        NNOLambda((point.s.cwiseProduct(point.z)).cwiseSqrt()) {}
+        // Lambda belongs to Scalings, as This object knows how to best compute
+        // lambda for different cones
+        // semantically as well Scaling variable belongs to Scalings object
+        // TODO I dont think we are using lambdaSquare anymore
+        NNOLambdaSquare(point.s.cwiseProduct(point.z)),
+        NNOLambda(NNOLambdaSquare.cwiseSqrt()) {}
   // NNO -- NonNegativeOrthant, these are DiagonalMatrix but stored as Vectors
   const Eigen::VectorXd NNO;
   const Eigen::VectorXd NNOInverse;
+  // Lambda and lambdaSquare are vectors
+  const Eigen::VectorXd NNOLambdaSquare;
   const Eigen::VectorXd NNOLambda;
+
+  /**
+   * Computes Rhs used in computation of affine direction
+   * dxRhs = rx
+   * dyRhs = ry
+   * dzRhs = rz - W{T}(lambda o\ ds)
+   *  Where ds = lambda o lambda
+   * dtauRhs = rtau - dkappa/tau
+   *  Where dkappa = kappa * tau
+   *
+   *
+   * Rhs is used in following system
+   *
+   * [ 0  A'  G' ][x]   [dxRhs]
+   * [-A  0   0  ][y] = [dyRhs]
+   * [-G  0   W'W][z]   [dzRhs - W{T}(lambda o ds)]
+   *
+   * dtauRhs is used calculation of deltaTau
+   *
+   * Only o operator and diamond operator are done here (This ensures seperation
+   *of concerns)
+   * So only dzSubRhs = (lambda o\ ds) and dtauSubRhs = dk => kappa * tau are
+   *caluclated here
+   *
+   * Returning point is actually not complete Rhs but subRhs with only z and tau
+   *filled
+   *
+   * Using structure Point even if not all values are filled/used
+   */
+  Point getAffineSubRhs(const Problem& problem,
+                        const Point& currentPoint) const {
+    Point subRhs(problem.G.rows());
+
+    subRhs.z = NNOLambda;
+    subRhs.tau = currentPoint.kappa * currentPoint.tau;
+
+    return subRhs;
+  }
+
+  /**
+   * Returns z = lambda o\ ds
+   * Returns tau = dk
+   *
+   */
+  Point getCombinedSubRhs(const Problem& problem, const Point& currentPoint,
+                          const Point& affinePoint, const double mu,
+                          const double sigma) const {
+    Point subRhs(problem.G.rows());
+
+    // -sigma * mu * e + (W{-T} * sa) o (W * za) + lambda o lambda
+    subRhs.z = NNOLambdaSquare + affinePoint.s.cwiseProduct(affinePoint.z) -
+               (sigma * mu * Eigen::VectorXd::Ones(problem.h.rows()));
+    // lambda o\ ds = diag(lambda){-1} * ds
+    subRhs.z = subRhs.z.cwiseQuotient(NNOLambda);
+
+    // -sigma * mu + ka*ta + k*t
+    subRhs.tau = affinePoint.kappa * affinePoint.tau +
+                 currentPoint.kappa * currentPoint.tau - (sigma * mu);
+
+    return subRhs;
+  }
 };
 
 std::ostream& operator<<(std::ostream& out, const NTScalings& scalings) {
@@ -44,6 +117,8 @@ std::ostream& operator<<(std::ostream& out, const NTScalings& scalings) {
   out << "Value of NNO: " << endl << scalings.NNO << endl;
   out << "Value of NNOInverse: " << endl << scalings.NNOInverse << endl;
   out << "Value of NNOLambda: " << endl << scalings.NNOLambda << endl;
+  out << "Value of NNOLambda Square: " << endl << scalings.NNOLambdaSquare
+      << endl;
   out << "##################### NTScalings End" << endl;
 }
 }

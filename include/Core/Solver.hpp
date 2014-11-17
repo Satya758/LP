@@ -15,6 +15,15 @@
 // Copy symbols from http://math.typeit.org/
 namespace lp {
 
+// Thought of using in Scalings object to determine computation of Rhs for
+// Affine/Combined
+// Unable to use due to signature difference between Affine and Combined
+// direction
+enum class Direction {
+  Affine,
+  Combined
+};
+
 /**
  *Solves Convex problems
  *Linear solver is provided as template argument
@@ -67,6 +76,42 @@ class Solver {
 
       BOOST_LOG_TRIVIAL(info) << subSolution;
 
+      BOOST_LOG_TRIVIAL(info) << residual;
+
+      Point affineDirection = this->template getDirection<Direction::Affine>(
+          scalings, residual, subSolution, point);
+
+      BOOST_LOG_TRIVIAL(info) << "Affine Direction ";
+      BOOST_LOG_TRIVIAL(info) << affineDirection;
+
+      double alpha = this->template computeAlpha<Direction::Affine>(
+          affineDirection, scalings);
+      double sigma = std::pow(1 - alpha, exp);
+
+      // mu = lambda' * lambda / (1 + m)
+      // TODO m will be different when other cones are introduced and what
+      // should be when A is used?
+      double mu = (scalings.NNOLambda.squaredNorm() + point.kappa * point.tau) /
+                  (1 + problem.h.rows());
+
+      BOOST_LOG_TRIVIAL(info) << "Mu " << mu;
+      BOOST_LOG_TRIVIAL(info) << "Sigma " << sigma;
+
+      Point combinedDirection =
+          this->template getDirection<Direction::Combined>(
+              scalings, residual, subSolution, point, affineDirection, mu,
+              sigma);
+
+      BOOST_LOG_TRIVIAL(info) << "Combined Direction ";
+      BOOST_LOG_TRIVIAL(info) << combinedDirection;
+
+      // Step size updated
+      alpha = this->template computeAlpha<Direction::Combined>(
+          combinedDirection, scalings);
+
+
+
+
       break;
     }
   }
@@ -74,6 +119,9 @@ class Solver {
  private:
   const Problem& problem;
   LinearSolver linearSolver;
+
+  constexpr static double exp = 3;
+  constexpr static double step = 0.99;
 
   // As name implies its dummy object as Initial point does not need any
   // scaling point
@@ -169,11 +217,106 @@ class Solver {
    * [A   0    0 ] [y] =  [-dy]
    * [G   0   -W'W][z]	  [W{T}(lambda o\ ds) - dz]
    *
-   * Where
+   * Final Rhs is computed here with help from Scalings object
    *
    */
-  Point getAffineDirection(const Scalings scalings, const Residual& residual,
-                           const NewtonDirection& subSolution) {}
+  template <lp::Direction direction>
+  Point getDirection(const Scalings scalings, const Residual& residual,
+                     const NewtonDirection& subSolution,
+                     const Point& currentPoint,
+                     // Used only for Correction direction
+                     const Point& affinePoint = Point(), const double mu = 0,
+                     const double sigma = 0) {
+
+    const double residualMul = 1.0 - sigma;
+
+    BOOST_LOG_TRIVIAL(info) << "Mul: " << residualMul;
+    // Returns sub values which have o and o\ as operators
+    // in z we find lambda o\ ds (ds depends on Direction)
+    // in tau we find dk (dk depends on Direction)
+    Point subRhs;
+    if (direction == Direction::Affine) {
+      subRhs = scalings.getAffineSubRhs(problem, currentPoint);
+    } else if (direction == Direction::Combined) {
+      subRhs = scalings.getCombinedSubRhs(problem, currentPoint, affinePoint,
+                                          mu, sigma);
+    }
+
+    BOOST_LOG_TRIVIAL(info) << "SubRhs " << subRhs;
+
+    // rhsZ = rz - W{T} * (lambda o\ ds)
+    // Notice Scaling matrix is not transposed here, in LP scenario we don't
+    // have to
+    // transpose Scaling matrix as it is diagonal, TODO but it should be done
+    // differently for other cones
+    Eigen::VectorXd rhsZ = (scalings.NNO.asDiagonal() * subRhs.z) -
+                           residual.residualZ * residualMul;
+
+    BOOST_LOG_TRIVIAL(info) << "rhsZ " << rhsZ;
+
+    NewtonDirection subSolution2 =
+        linearSolver.template solve<lp::SolveFor::StepDirection>(
+            residual.residualX * residualMul, -residualMul * residual.residualY,
+            rhsZ, scalings);
+
+    Point point(problem);
+
+    // deltaTau = (dTau - dk/tau + c'x2 + b'y2 + W{-T}h'z2)/ kappa/tau +
+    // ||Wz||^{2}
+    // x2,y2,z2 are newtonDirection calculated above
+    // W{-T}h'z2 instead of h'z2 is because of the way solution is calculated
+    // x1,y1,z1 are from subSolution
+    point.tau =
+        (residual.residualTau * residualMul - subRhs.tau / currentPoint.tau +
+         problem.c.dot(subSolution2.x) + problem.b.dot(subSolution2.y) +
+         (scalings.NNOInverse.asDiagonal() * problem.h).dot(subSolution2.z)) /
+        (currentPoint.kappa / currentPoint.tau + subSolution.z.squaredNorm());
+
+    // x = x2 + tau * x1
+    point.x = subSolution2.x + point.tau * subSolution.x;
+    // y = y2 + tau * y1
+    point.y = subSolution2.y + point.tau * subSolution.y;
+    // z = z2 + tau * z1
+    point.z = subSolution2.z + point.tau * subSolution.z;
+
+    // XXX
+    // s = -W{T} * ( lambda o\ ds + W*z)
+    // => W{-T}*s = -( lambda o\ ds + W*z)
+    // W{-T}*s is used in combined search direction
+    // TODO Check this... Like scaled Z here we have scaled S
+    // point.s = -1 * scalings.NNO.asDiagonal() * (subRhs.z + point.z);
+    point.s = -subRhs.z - point.z;
+    // kappa = -(dk + currentKappa * tau)/currentTau;
+    point.kappa =
+        -(subRhs.tau + currentPoint.kappa * point.tau) / currentPoint.tau;
+
+    return point;
+  }
+
+  template <Direction direction>
+  double computeAlpha(const Point& searchDirection,
+                      const Scalings& scalings) const {
+    // Expand the s and z with lambda
+    // TODO Check what is theoritcal advantage
+    Eigen::VectorXd s = searchDirection.s.cwiseQuotient(scalings.NNOLambda);
+    Eigen::VectorXd z = searchDirection.z.cwiseQuotient(scalings.NNOLambda);
+
+    double ts = getMaxStep(s);
+    double tz = getMaxStep(z);
+
+    double maxCoeff =
+        std::max({0.0, ts, tz, -searchDirection.kappa, -searchDirection.tau});
+
+    if (maxCoeff == 0) {
+      return 0.0;
+    } else {
+      if (direction == Direction::Affine) {
+        return std::min(1.0, 1.0 / maxCoeff);
+      } else if (direction == Direction::Combined) {
+        return std::min(1.0, step / maxCoeff);
+      }
+    }
+  }
 };
 
 }  // lp
