@@ -17,6 +17,13 @@ enum class SolveFor {
   StepDirection
 };
 
+// Solver State
+enum class SolverState {
+  Feasible,
+  Infeasible,
+  InProgress
+};
+
 /**
  *Defines the problem and options to solver
  *
@@ -108,6 +115,8 @@ std::ostream& operator<<(std::ostream& out, const NewtonDirection& direction) {
   out << "Value of y: " << endl << direction.y << endl;
   out << "Value of z: " << endl << direction.z << endl;
   out << "##################### NewtonDirection End" << endl;
+
+  return out;
 }
 }
 #endif  // PROBLEM_HPP

@@ -36,16 +36,13 @@ class Solver {
   /**
    *
    */
-  void solve() {
+  Solution solve() {
 
     const double residualX0{std::max(1.0, problem.c.norm())};
     const double residualY0{std::max(1.0, problem.b.norm())};
     const double residualZ0{std::max(1.0, problem.h.norm())};
 
-    Point point = getInitialPoint();
-
-    BOOST_LOG_TRIVIAL(info) << "Initial Points";
-    BOOST_LOG_TRIVIAL(info) << point;
+    Point currentPoint = getInitialPoint();
 
     Residual tolerantResidual(problem);
 
@@ -54,35 +51,25 @@ class Solver {
     // loop
     for (int i = 0; i <= problem.maxIterations; ++i) {
 
-      Residual residual(problem, point, i, residualX0, residualY0, residualZ0);
+      Residual residual(problem, currentPoint, i, residualX0, residualY0,
+                        residualZ0);
       SolverState solverState = getSolverState(residual, tolerantResidual);
 
-      BOOST_LOG_TRIVIAL(info) << "Iteration: " << i;
-      // TODO Build solution object to return
       if (solverState == SolverState::Feasible) {
         BOOST_LOG_TRIVIAL(info) << "Solution found ";
-        break;  // Maybe return
+        return Solution(residual, currentPoint);
       } else if (solverState == SolverState::Infeasible) {
         BOOST_LOG_TRIVIAL(info) << "Solution found, its Infeasible ";
-        break;  // Maybe return
+        return Solution(residual, currentPoint);
       }
 
       // Compute scalings for given point
-      Scalings scalings(point);
-
-      BOOST_LOG_TRIVIAL(info) << scalings;
+      Scalings scalings(currentPoint);
 
       NewtonDirection subSolution = getSubSolution(scalings);
 
-      BOOST_LOG_TRIVIAL(info) << subSolution;
-
-      BOOST_LOG_TRIVIAL(info) << residual;
-
       Point affineDirection = this->template getDirection<Direction::Affine>(
-          scalings, residual, subSolution, point);
-
-      BOOST_LOG_TRIVIAL(info) << "Affine Direction ";
-      BOOST_LOG_TRIVIAL(info) << affineDirection;
+          scalings, residual, subSolution, currentPoint);
 
       double alpha = this->template computeAlpha<Direction::Affine>(
           affineDirection, scalings);
@@ -91,28 +78,25 @@ class Solver {
       // mu = lambda' * lambda / (1 + m)
       // TODO m will be different when other cones are introduced and what
       // should be when A is used?
-      double mu = (scalings.NNOLambda.squaredNorm() + point.kappa * point.tau) /
+      double mu = (scalings.NNOLambda.squaredNorm() +
+                   currentPoint.kappa * currentPoint.tau) /
                   (1 + problem.h.rows());
-
-      BOOST_LOG_TRIVIAL(info) << "Mu " << mu;
-      BOOST_LOG_TRIVIAL(info) << "Sigma " << sigma;
 
       Point combinedDirection =
           this->template getDirection<Direction::Combined>(
-              scalings, residual, subSolution, point, affineDirection, mu,
-              sigma);
-
-      BOOST_LOG_TRIVIAL(info) << "Combined Direction ";
-      BOOST_LOG_TRIVIAL(info) << combinedDirection;
+              scalings, residual, subSolution, currentPoint, affineDirection,
+              mu, sigma);
 
       // Step size updated
       alpha = this->template computeAlpha<Direction::Combined>(
           combinedDirection, scalings);
 
+      // Unscale s and z for step updates
+      combinedDirection.s = scalings.NNO.cwiseProduct(combinedDirection.s);
+      combinedDirection.z =
+          scalings.NNOInverse.cwiseProduct(combinedDirection.z);
 
-
-
-      break;
+      currentPoint = updatePoint(currentPoint, combinedDirection, alpha);
     }
   }
 
@@ -230,7 +214,6 @@ class Solver {
 
     const double residualMul = 1.0 - sigma;
 
-    BOOST_LOG_TRIVIAL(info) << "Mul: " << residualMul;
     // Returns sub values which have o and o\ as operators
     // in z we find lambda o\ ds (ds depends on Direction)
     // in tau we find dk (dk depends on Direction)
@@ -242,8 +225,6 @@ class Solver {
                                           mu, sigma);
     }
 
-    BOOST_LOG_TRIVIAL(info) << "SubRhs " << subRhs;
-
     // rhsZ = rz - W{T} * (lambda o\ ds)
     // Notice Scaling matrix is not transposed here, in LP scenario we don't
     // have to
@@ -251,8 +232,6 @@ class Solver {
     // differently for other cones
     Eigen::VectorXd rhsZ = (scalings.NNO.asDiagonal() * subRhs.z) -
                            residual.residualZ * residualMul;
-
-    BOOST_LOG_TRIVIAL(info) << "rhsZ " << rhsZ;
 
     NewtonDirection subSolution2 =
         linearSolver.template solve<lp::SolveFor::StepDirection>(

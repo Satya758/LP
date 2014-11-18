@@ -37,9 +37,7 @@ template <typename Scalings>
 class SuiteSparseCholeskyLLT {
 
  public:
-  SuiteSparseCholeskyLLT(const lp::Problem& problem) : problem(problem) {
-    BOOST_LOG_TRIVIAL(info) << "Constructor of Linear Solver";
-  }
+  SuiteSparseCholeskyLLT(const lp::Problem& problem) : problem(problem) {}
 
   // Factor matrix omega = G' * W{-1} * W{-T} * G
   // If scalingMatrix W is Identity factor G' * G
@@ -50,7 +48,6 @@ class SuiteSparseCholeskyLLT {
   // TODO Input is not anymore DiagonalMatrix but Scalings object adapt!!
   template <lp::SolveFor solveFor>
   void factor(const Scalings& scalings) {
-    BOOST_LOG_TRIVIAL(info) << "Step directions Factorization";
 
     // First compute G * W{-T} and store it
     // Used also to compute omegaTilde

@@ -120,6 +120,8 @@ std::ostream& operator<<(std::ostream& out, const NTScalings& scalings) {
   out << "Value of NNOLambda Square: " << endl << scalings.NNOLambdaSquare
       << endl;
   out << "##################### NTScalings End" << endl;
+
+  return out;
 }
 }
 

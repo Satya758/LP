@@ -12,7 +12,6 @@
 
 #include <Core/Point.hpp>
 #include <Problem.hpp>
-#include <Solution.hpp>
 
 namespace lp {
 
@@ -217,6 +216,8 @@ std::ostream& operator<<(std::ostream& out, const Residual& residual) {
   out << "Dual Infeasibility: " << residual.dualInfeasibility << endl;
   out << "Iterations: " << residual.iterations << endl;
   out << "##################### Residual End" << endl;
+
+  return out;
 }
 
 // TODO Only One operator is implmented and only make sense to use it in end

@@ -2,6 +2,7 @@
 #include <boost/log/trivial.hpp>
 
 #include <Problem.hpp>
+#include <Solution.hpp>
 #include <Core/Solver.hpp>
 
 #include <Ext/NTScalings.hpp>
@@ -39,7 +40,7 @@ lp::Problem getInequalityTest() {
 
 int main(int argc, char **argv) {
 
-  BOOST_LOG_TRIVIAL(info) << "Hello World!";
+  BOOST_LOG_TRIVIAL(info) << "Started...";
 
   // lp::Problem problem(5, 5, 5);
   // TODO Internal is used but should not be
@@ -48,6 +49,9 @@ int main(int argc, char **argv) {
   lp::Solver<lp::SuiteSparseCholeskyLLT<lp::NTScalings>, lp::NTScalings> solver(
       problem);
 
-  solver.solve();
+  lp::Solution solution = solver.solve();
+
+  BOOST_LOG_TRIVIAL(info) << solution;
+
   return 0;
 }

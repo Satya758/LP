@@ -18,6 +18,7 @@ namespace lp {
 class Point {
  public:
   // TODO To use as dummy object is there any better way
+  // In operator overload
   Point() {}
   // Used to create only z and tau object in Scalings getAffineDirection and
   // getCombinedDirection methods
@@ -58,6 +59,57 @@ std::ostream& operator<<(std::ostream& out, const Point& point) {
   out << "Homogenizing Variable kappa: " << endl << point.kappa << endl;
   out << "Homogenizing Variable tau: " << endl << point.tau << endl;
   out << "##################### Point End" << endl;
+
+  return out;
+}
+
+// TODO Till below conundrum is resolved do it old school
+Point updatePoint(const Point& lhs, const Point& rhs, const double alpha) {
+  Point result;
+
+  result.x = lhs.x + alpha * rhs.x;
+  result.s = lhs.s + alpha * rhs.s;
+  result.y = lhs.y + alpha * rhs.y;
+  result.z = lhs.z + alpha * rhs.z;
+  result.tau = lhs.tau + alpha * rhs.tau;
+  result.kappa = lhs.kappa + alpha * rhs.kappa;
+
+  return result;
+}
+
+// FIXME These operators are not used as I think they generate temporary objects
+// before final result is computed
+// All I need is point + alpha * point
+// Becuase the way I have implemented it would generate two temporary objects
+// before final result is obtained
+// TODO I have to do lazy evaluations if its not too much, after going through
+// that pain advantage is code would look more nicer
+// noalias from Eigen would not help I think but I have to relook again
+Point operator+(const Point& lhs, const Point& rhs) {
+  Point result;
+
+  result.x = lhs.x + rhs.x;
+  result.s = lhs.s + rhs.s;
+  result.y = lhs.y + rhs.y;
+  result.z = lhs.z + rhs.z;
+  result.tau = lhs.tau + rhs.tau;
+  result.kappa = lhs.kappa + rhs.kappa;
+
+  return result;
+}
+
+// FIXME Explanation given above
+Point operator*(const double lhs, const Point& rhs) {
+  Point result;
+
+  result.x = lhs * rhs.x;
+  result.s = lhs * rhs.s;
+  result.y = lhs * rhs.y;
+  result.z = lhs * rhs.z;
+  result.tau = lhs * rhs.tau;
+  result.kappa = lhs * rhs.kappa;
+
+  return result;
 }
 }
 #endif  // POINT_HPP
