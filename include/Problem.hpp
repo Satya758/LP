@@ -107,6 +107,16 @@ class NewtonDirection {
   Eigen::VectorXd z;
 };
 
+NewtonDirection operator*(const double lhs, const NewtonDirection& rhs) {
+  NewtonDirection result;
+
+  result.x = lhs * rhs.x;
+  result.y = lhs * rhs.y;
+  result.z = lhs * rhs.z;
+
+  return result;
+}
+
 std::ostream& operator<<(std::ostream& out, const NewtonDirection& direction) {
   using namespace std;
 

@@ -53,6 +53,7 @@ class Solver {
 
       Residual residual(problem, currentPoint, i, residualX0, residualY0,
                         residualZ0);
+
       SolverState solverState = getSolverState(residual, tolerantResidual);
 
       if (solverState == SolverState::Feasible) {
@@ -60,6 +61,9 @@ class Solver {
         return Solution(residual, currentPoint);
       } else if (solverState == SolverState::Infeasible) {
         BOOST_LOG_TRIVIAL(info) << "Solution found, its Infeasible ";
+        return Solution(residual, currentPoint);
+      } else if (i == problem.maxIterations) {
+        BOOST_LOG_TRIVIAL(info) << "Maximum number of iterations reached ";
         return Solution(residual, currentPoint);
       }
 
@@ -70,6 +74,10 @@ class Solver {
 
       Point affineDirection = this->template getDirection<Direction::Affine>(
           scalings, residual, subSolution, currentPoint);
+
+      BOOST_LOG_TRIVIAL(trace) << "Iteration: " << i;
+      BOOST_LOG_TRIVIAL(trace) << "Scalings " << scalings;
+      BOOST_LOG_TRIVIAL(trace) << "Affine Direction" << affineDirection;
 
       double alpha = this->template computeAlpha<Direction::Affine>(
           affineDirection, scalings);
@@ -82,11 +90,16 @@ class Solver {
                    currentPoint.kappa * currentPoint.tau) /
                   (1 + problem.h.rows());
 
+      BOOST_LOG_TRIVIAL(trace) << "Mu: " << mu;
+      BOOST_LOG_TRIVIAL(trace) << "Sigma: " << sigma;
+      BOOST_LOG_TRIVIAL(trace) << "1 - Sigma: " << 1 - sigma;
+
       Point combinedDirection =
           this->template getDirection<Direction::Combined>(
               scalings, residual, subSolution, currentPoint, affineDirection,
               mu, sigma);
 
+      BOOST_LOG_TRIVIAL(trace) << "Combined Direction" << combinedDirection;
       // Step size updated
       alpha = this->template computeAlpha<Direction::Combined>(
           combinedDirection, scalings);
@@ -95,8 +108,13 @@ class Solver {
       combinedDirection.s = scalings.NNO.cwiseProduct(combinedDirection.s);
       combinedDirection.z =
           scalings.NNOInverse.cwiseProduct(combinedDirection.z);
+      // TODO Find out how unscaling works
+      combinedDirection.tau = combinedDirection.tau * scalings.dgInverse;
+      combinedDirection.kappa = combinedDirection.kappa * scalings.dg;
 
       currentPoint = updatePoint(currentPoint, combinedDirection, alpha);
+
+      BOOST_LOG_TRIVIAL(trace) << "Updated current point" << currentPoint;
     }
   }
 
@@ -180,6 +198,8 @@ class Solver {
    * [0   A'   G'] [x]    [-c]
    * [A   0    0 ] [y] =  [b]
    * [G   0   -W'W][z]	  [h]
+   *
+   * TODO result is multiplied with dgi...why
    */
   NewtonDirection getSubSolution(const Scalings& scalings) {
     // Only one factorization in loop is done here
@@ -187,8 +207,11 @@ class Solver {
 
     Eigen::VectorXd rhsX(-1 * problem.c);
 
-    return linearSolver.template solve<lp::SolveFor::StepDirection>(
-        rhsX, problem.b, problem.h, scalings);
+    NewtonDirection direction =
+        linearSolver.template solve<lp::SolveFor::StepDirection>(
+            rhsX, problem.b, problem.h, scalings);
+    // TODO Why
+    return scalings.dgInverse * direction;
   }
 
   /**
@@ -233,10 +256,16 @@ class Solver {
     Eigen::VectorXd rhsZ = (scalings.NNO.asDiagonal() * subRhs.z) -
                            residual.residualZ * residualMul;
 
+    BOOST_LOG_TRIVIAL(trace) << "rhsX" << residual.residualX * residualMul;
+    BOOST_LOG_TRIVIAL(trace) << "rhsY" << -residualMul * residual.residualY;
+    BOOST_LOG_TRIVIAL(trace) << "rhsZ" << rhsZ;
+
     NewtonDirection subSolution2 =
         linearSolver.template solve<lp::SolveFor::StepDirection>(
             residual.residualX * residualMul, -residualMul * residual.residualY,
             rhsZ, scalings);
+
+    BOOST_LOG_TRIVIAL(trace) << "Solution from LS: " << subSolution2;
 
     Point point(problem);
 
@@ -245,11 +274,13 @@ class Solver {
     // x2,y2,z2 are newtonDirection calculated above
     // W{-T}h'z2 instead of h'z2 is because of the way solution is calculated
     // x1,y1,z1 are from subSolution
+    // TODO Check why do we have to multiply with dgInverse
     point.tau =
+        scalings.dgInverse *
         (residual.residualTau * residualMul - subRhs.tau / currentPoint.tau +
          problem.c.dot(subSolution2.x) + problem.b.dot(subSolution2.y) +
          (scalings.NNOInverse.asDiagonal() * problem.h).dot(subSolution2.z)) /
-        (currentPoint.kappa / currentPoint.tau + subSolution.z.squaredNorm());
+        (1 + subSolution.z.squaredNorm());
 
     // x = x2 + tau * x1
     point.x = subSolution2.x + point.tau * subSolution.x;
@@ -266,8 +297,11 @@ class Solver {
     // point.s = -1 * scalings.NNO.asDiagonal() * (subRhs.z + point.z);
     point.s = -subRhs.z - point.z;
     // kappa = -(dk + currentKappa * tau)/currentTau;
-    point.kappa =
-        -(subRhs.tau + currentPoint.kappa * point.tau) / currentPoint.tau;
+    //     point.kappa =
+    //         -(subRhs.tau + currentPoint.kappa * point.tau) /
+    // currentPoint.tau;
+    // TODO Check lambdaG
+    point.kappa = -(subRhs.tau / scalings.lambdaG) - point.tau;
 
     return point;
   }
@@ -283,11 +317,14 @@ class Solver {
     double ts = getMaxStep(s);
     double tz = getMaxStep(z);
 
-    double maxCoeff =
-        std::max({0.0, ts, tz, -searchDirection.kappa, -searchDirection.tau});
+    double maxCoeff = std::max({0.0,
+                                ts,
+                                tz,
+                                -searchDirection.kappa / scalings.lambdaG,
+                                -searchDirection.tau / scalings.lambdaG});
 
     if (maxCoeff == 0) {
-      return 0.0;
+      return 1.0;
     } else {
       if (direction == Direction::Affine) {
         return std::min(1.0, 1.0 / maxCoeff);

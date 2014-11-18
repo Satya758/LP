@@ -1,6 +1,8 @@
 #ifndef NT_SCALINGS_HPP
 #define NT_SCALINGS_HPP
 
+#include <cmath>
+
 #include <boost/mpl/int.hpp>
 #include <boost/log/trivial.hpp>
 
@@ -30,7 +32,7 @@ class NTScalings {
  public:
   // Identity scaling for Initial Points
   // TODO Currently Identity is not calculated
-  NTScalings() {}
+  NTScalings() : dg(1), dgInverse(1), lambdaG(1) {}
   // Compute scalings for given point
   NTScalings(const Point& point)
       : NNO((point.s.cwiseQuotient(point.z)).cwiseSqrt()),
@@ -40,13 +42,20 @@ class NTScalings {
         // semantically as well Scaling variable belongs to Scalings object
         // TODO I dont think we are using lambdaSquare anymore
         NNOLambdaSquare(point.s.cwiseProduct(point.z)),
-        NNOLambda(NNOLambdaSquare.cwiseSqrt()) {}
+        NNOLambda(NNOLambdaSquare.cwiseSqrt()),
+        dg(std::sqrt(point.kappa / point.tau)),
+        dgInverse(1 / dg),
+        lambdaG(std::sqrt(point.kappa * point.tau)) {}
   // NNO -- NonNegativeOrthant, these are DiagonalMatrix but stored as Vectors
   const Eigen::VectorXd NNO;
   const Eigen::VectorXd NNOInverse;
   // Lambda and lambdaSquare are vectors
   const Eigen::VectorXd NNOLambdaSquare;
   const Eigen::VectorXd NNOLambda;
+  // TODO I dont understand this part!!!
+  const double dg;
+  const double dgInverse;
+  const double lambdaG;
 
   /**
    * Computes Rhs used in computation of affine direction
@@ -119,6 +128,9 @@ std::ostream& operator<<(std::ostream& out, const NTScalings& scalings) {
   out << "Value of NNOLambda: " << endl << scalings.NNOLambda << endl;
   out << "Value of NNOLambda Square: " << endl << scalings.NNOLambdaSquare
       << endl;
+  out << "Value of dg: " << scalings.dg << endl;
+  out << "Value of dgInverse: " << scalings.dgInverse << endl;
+  out << "Value of lambdaG: " << scalings.lambdaG << endl;
   out << "##################### NTScalings End" << endl;
 
   return out;
