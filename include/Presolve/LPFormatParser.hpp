@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <type_traits>
+#include <cmath>
 
 #include <boost/log/trivial.hpp>
 #include <boost/spirit/include/qi.hpp>
@@ -18,6 +19,12 @@
 #include <boost/spirit/include/phoenix_fusion.hpp>
 #include <boost/spirit/include/phoenix_stl.hpp>
 #include <boost/fusion/include/adapt_struct.hpp>
+
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
+#include <Eigen/SPQRSupport>
+
+#include <Problem.hpp>
 
 namespace lp {
 namespace parser {
@@ -31,7 +38,8 @@ enum class Operators {
   le,
   gt,
   ge,
-  eq
+  eq,
+  invalid, free // Added to handle free varaibles in Bounds
 };
 
 std::ostream& operator<<(std::ostream& out, const Operators& op) {
@@ -43,7 +51,7 @@ class OPSymbols : public qi::symbols<char, Operators> {
  public:
   OPSymbols() {
     add("<", Operators::le)("<=", Operators::le)(">", Operators::gt)(
-        ">=", Operators::ge)("=", Operators::eq);
+        ">=", Operators::ge)("=", Operators::eq) ("free", Operators::free);
   }
 };
 
@@ -57,8 +65,9 @@ class BoundSymbols : public qi::symbols<char, double> {
 // SCN means SignCoefficientName
 class SCS {
  public:
-  char sign;
-  double value;
+  // Initialize default values
+  char sign = '+';
+  double value = 1.0;
   std::string name;
 };
 
@@ -73,10 +82,10 @@ class Bounds {
  public:
   double lower;
   // Lower Operator
-  Operators lOp;
+  Operators lOp = Operators::invalid;
   std::string name;
   // Upper Operator
-  Operators uOp;
+  Operators uOp = Operators::invalid;
   double upper;
 };
 
@@ -111,7 +120,10 @@ BOOST_FUSION_ADAPT_STRUCT(lp::parser::Constraints,
                            lhs)(lp::parser::Operators, op)(double, rhs))
 
 BOOST_FUSION_ADAPT_STRUCT(lp::parser::Bounds,
-                          (double, lower) (lp::parser::Operators, lOp) (std::string, name) (lp::parser::Operators, uOp) (double, upper))
+                          (double, lower)(lp::parser::Operators,
+                                          lOp)(std::string,
+                                               name)(lp::parser::Operators,
+                                                     uOp)(double, upper))
 
 BOOST_FUSION_ADAPT_STRUCT(
     lp::parser::ParsedObject,
@@ -178,7 +190,7 @@ class LPFormatGrammar : public qi::grammar<Iterator, ParsedObject(), Skip> {
     parsedObj = objectiveText >> +objective >> constraintsText >>
                 +constraints >> -boundText >> *bounds;
 
-    //BOOST_SPIRIT_DEBUG_NODE(parsedObj);
+    // BOOST_SPIRIT_DEBUG_NODE(parsedObj);
   }
 
   qi::rule<Iterator, ParsedObject(), Skip> parsedObj;
@@ -238,6 +250,276 @@ class LPFormatParser {
     }
 
     BOOST_LOG_TRIVIAL(info) << obj;
+
+    Problem problem = getProblem(obj);
+
+    BOOST_LOG_TRIVIAL(info) << problem;
+  }
+
+ private:
+  typedef Eigen::Triplet<double> CT;
+  /**
+   * Add default values when data is copied to problem
+   *
+   * Idea is
+   * 1. First push objective along with default values and proper signs
+   * 2. Store names of all variables in unordered_map to have O(1) access along
+   *    with index, e.g. {Name, colIndex>}, colIndex is just incremented int for
+   *    each name
+   * 3. Push the constraints into Triplet along with signs and default values,
+   *    based on operator convert into standard form required by Problem, fill
+   *    RHS h vector as well constraint by constrant, If it is eq operator
+   *    duplicate the entries with le and ge operators.
+   *    e.g. g1 + g2 = h1 results in g1 + g2 >= h1; g1 + g2 <= h2 (ofcourse h1
+   *    == h2)
+   * 4. Finally check the bounds and add them to consraints based on operator
+   * 5. Position of constraint coeff (colIndex) can obtained from unordered_map
+   * 6. First data is copied to temporary objects (Vectors, Vector<Triplets>)
+   *    so that we know the size, and create Problem object with known sizes
+   *
+   */
+  Problem getProblem(const ParsedObject& parsedObj) const {
+
+    std::vector<double> c(parsedObj.objective.size());
+    // Approximate size, worst case actual size will be double if there are
+    // equality constraints
+    // Reseve some size
+    std::vector<double> h(2 * parsedObj.constraints.size() +
+                          2 * parsedObj.bounds.size());
+    std::unordered_map<std::string, int> nameMap;
+
+    int index = 0;
+    for (const SCS& scs : parsedObj.objective) {
+
+      switch (scs.sign) {
+        case '+':
+          c.push_back(scs.value);
+          break;
+        case '-':
+          c.push_back(-scs.value);
+          break;
+      }
+
+      nameMap.insert({{scs.name, index}});
+
+      ++index;
+    }
+
+    std::vector<CT> constraintTriplets =
+        getConstraintTriplets(parsedObj, nameMap, h);
+
+    addBounds(parsedObj, nameMap, constraintTriplets, h);
+
+    return getProblem(constraintTriplets, h, c);
+  }
+
+  // Convert to problem
+  Problem getProblem(const std::vector<CT>& constraintTriplets,
+                     const std::vector<double>& h,
+                     const std::vector<double>& c) const {
+
+    //BOOST_LOG_TRIVIAL(info) << "H: " << h << "C: ";// << c << "G: ";// << constraintTriplets;
+    Problem problem(h.size(), 0, c.size());
+    {
+    // Make objective
+    int index = 0;
+    for(const double value : c ) {
+	 problem.c(0) = value;
+	 ++index;
+    }}
+
+    { // Make inequality rhs
+      int index = 0;
+      for(const double value : h ) {
+	 problem.h(0) = value;
+	 ++index;
+    }
+    }
+
+    {
+      // Make inequality consraints lhs
+      problem.G.setFromTriplets(constraintTriplets.begin(), constraintTriplets.end());
+    }
+
+    removeRedundantRows(problem);
+
+    return problem;
+  }
+
+  /**
+   *
+   * Full row rank is required for linear programming, as all proofs are
+   * considered with full row rank of a constrained matrix
+   *
+   * Determination of full row rank
+   * 1. Using QR (SPQR) from suitesparse as it has more chance of getting
+   *    parallelized (in documentaion), Eigen has also QR implemented I do not
+   *    know the performace comparision between Eigen QR and suitesparse QR
+   *    (TODO Get the benchmarks for both functions)
+   * 2. QR is used to find the column rank of matrix (I did not find any way to
+   *    do it to get for row rank ).
+   * 3. First matrix is transposed to get rows to columns (we should copy
+   *    constraint
+   *    matrix to avoid changing original ), the QR is called to get rank and
+   *    permutation matrix.
+   * 4. Permuation is multiplied from left hand side to bring up all independent
+   *    rows to top, and then Rank is used to resize (shrink) the row size of
+   *    matrix, which will also remove all dependent rows.
+   * 5. Same is done for RHS
+   * 6. After this original sizes given to Problem constructor are not any more valid
+   */
+  void removeRedundantRows(Problem& problem) const {
+    Eigen::SPQR<Eigen::SparseMatrix<double>> qrSolver;
+    // TODO Use constants from common header
+    qrSolver.setPivotThreshold(1.0e-10);
+
+    qrSolver.compute(problem.G.transpose());
+    // TODO When I use same matrix on both side resultant matrix is full of
+    // zeros, this is eigen way of doing, have to find reason and better way to
+    // do it
+    Eigen::SparseMatrix<double> copyOFG = problem.G;
+    problem.G = qrSolver.colsPermutation() * copyOFG;
+
+    problem.G.conservativeResize(qrSolver.rank(), problem.G.cols());
+
+    problem.h = qrSolver.colsPermutation() * problem.h;
+
+    problem.h.conservativeResize(qrSolver.rank());
+
+  }
+
+  // FIXME Raw loops refactor the code!!
+  std::vector<CT> getConstraintTriplets(
+      const ParsedObject& parsedObj,
+      const std::unordered_map<std::string, int>& nameMap,
+      std::vector<double>& h) const {
+
+    std::vector<CT> constraintTriplets;
+    int rowIndex = 0;
+    for (const Constraints& ct : parsedObj.constraints) {
+      int signModifier;
+      bool isEqual = false;
+
+      // There are no lt and gt?
+      switch (ct.op) {
+        case Operators::le:
+          signModifier = 1;
+          break;
+        case Operators::ge:
+          signModifier = -1;
+          break;
+        case Operators::eq:
+          isEqual = true;
+          break;
+      }
+
+      if (!isEqual) {
+        for (const SCS& scs : ct.lhs) {
+          const int colIndex = nameMap.at(scs.name);
+
+          switch (scs.sign) {
+            case '+':
+              constraintTriplets.push_back(
+                  CT(rowIndex, colIndex, signModifier * scs.value));
+              break;
+            case '-':
+              constraintTriplets.push_back(
+                  CT(rowIndex, colIndex, -(signModifier * scs.value)));
+              break;
+          }
+        }
+        h.push_back(signModifier * ct.rhs);
+
+      } else if (isEqual) {
+        int doubleInserter = 0;
+        // For greater than or equal to Sign
+        int geSign = 1;
+        while (doubleInserter < 2) {
+          if (doubleInserter == 1) {
+            geSign = -1;
+          }
+
+          for (const SCS& scs : ct.lhs) {
+            const int colIndex = nameMap.at(scs.name);
+
+            switch (scs.sign) {
+              case '+':
+                constraintTriplets.push_back(
+                    CT(rowIndex, colIndex, geSign * scs.value));
+                break;
+              case '-':
+                constraintTriplets.push_back(
+                    CT(rowIndex, colIndex, -(geSign * scs.value)));
+                break;
+            }
+          }
+          h.push_back(geSign * ct.rhs);
+          ++rowIndex;  // Increment row for duplicate entry in next line
+          ++doubleInserter;
+        }
+      }
+
+      ++rowIndex;
+    }
+
+    return constraintTriplets;
+  }
+
+  // // FIXME Raw loops refactor the code!!
+  void addBounds(const ParsedObject& parsedObj,
+                 const std::unordered_map<std::string, int>& nameMap,
+                 std::vector<CT> constraintTriplets, std::vector<double>& h) const {
+    // Added rows till now
+    int rowIndex = h.size();
+    for (const Bounds& bounds : parsedObj.bounds) {
+      int colIndex = nameMap.at(bounds.name);
+
+      if (bounds.uOp != Operators::invalid && !std::isinf(bounds.upper)) {
+        // There is no lt and gt
+        switch (bounds.uOp) {
+          // Push as is with coefficient equal to 1, no requirement of sign
+          // change
+          case Operators::le:
+            constraintTriplets.push_back(CT(rowIndex, colIndex, 1));
+            h.push_back(bounds.upper);
+            break;
+          // Sign change
+          case Operators::ge:
+            constraintTriplets.push_back(CT(rowIndex, colIndex, -1));
+            h.push_back(-bounds.upper);
+            break;
+          // Insert two records with different signs
+          case Operators::eq:
+            constraintTriplets.push_back(CT(rowIndex, colIndex, 1));
+            h.push_back(bounds.upper);
+            ++rowIndex;
+            constraintTriplets.push_back(CT(rowIndex, colIndex, -1));
+            h.push_back(-bounds.upper);
+            break;
+        }
+      } else if (bounds.lOp != Operators::invalid &&
+                 !std::isinf(bounds.lower)) {
+        switch (bounds.lOp) {
+          // Push as is with coefficient equal to 1, no requirement of sign
+          // change
+          case Operators::ge:
+            constraintTriplets.push_back(CT(rowIndex, colIndex, 1));
+            h.push_back(bounds.lower);
+            break;
+          // Sign change
+          case Operators::le:
+            constraintTriplets.push_back(CT(rowIndex, colIndex, -1));
+            h.push_back(-bounds.lower);
+            break;
+          // This scenario will not be encountered in our parser
+          case Operators::eq:
+            // DO nothing
+            break;
+        }
+      }
+
+      ++rowIndex;
+    }
   }
 };
 }

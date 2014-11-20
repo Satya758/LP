@@ -42,6 +42,7 @@ find_library(SS_CHOLMOD cholmod PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 find_library(SS_COLAMD colamd PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 find_library(SS_CONFIG suitesparseconfig PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 find_library(SS_UMFPACK umfpack PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
+find_library(SS_QR spqr PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 #SuiteSparse
 
 find_library(METIS metis PATHS ${METIS_LIB} NO_DEFAULT_PATH)
@@ -57,6 +58,7 @@ add_executable(linearprogramming main.cpp)
 target_link_libraries(${PROJECT_NAME}
 		      ${BOOST_LOG} ${BOOST_LOG_SETUP} ${BOOST_DATE_TIME}
 		      ${BOOST_SYSTEM} ${BOOST_THREAD}
+		      ${SS_QR}
 		      ${SS_CHOLMOD}
 		      ${SS_CONFIG}
 		      ${BLAS} ${LAPACK}
