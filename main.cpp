@@ -164,8 +164,11 @@ int main(int argc, char **argv) {
 
   lp::parser::LPFormatParser parser;
 
-//   parser.parse("/home/satya/Desktop/sample.lp");
-  parser.parse("/home/satya/Desktop/QiTest.lp");
+  BOOST_LOG_TRIVIAL(info) << "Started";
 
+  //   parser.parse("/home/satya/Desktop/sample.lp");
+  parser.parse("/home/satya/Desktop/test.lp");
+
+  BOOST_LOG_TRIVIAL(info) << "Ended";
   return 0;
 }
