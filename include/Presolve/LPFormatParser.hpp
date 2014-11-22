@@ -23,6 +23,8 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/SPQRSupport>
+#include <Eigen/SparseQR>
+#include <Eigen/OrderingMethods>
 
 #include <Problem.hpp>
 
@@ -424,31 +426,37 @@ class LPFormatParser {
       }
     };
 
-    RankSPQR qrSolver;
+    //RankSPQR qrSolver;
+    Eigen::SparseQR<SparseMatrix, Eigen::COLAMDOrdering<std::ptrdiff_t>> qrSolver;
     // TODO Use constants from common header
     qrSolver.setPivotThreshold(1.0e-10);
 
+
+    problem.G.makeCompressed();
     qrSolver.compute(problem.G);
-    BOOST_LOG_TRIVIAL(info) << "Rank: " << qrSolver.rank2();
+
+    BOOST_LOG_TRIVIAL(info) << "Rank: " << qrSolver.rank();
     // TODO When I use same matrix on both side resultant matrix is full of
     // zeros, this is eigen way of doing, have to find reason and better way to
     // do it
     BOOST_LOG_TRIVIAL(info) << "Before Copy: ";
     // TODO Witout copy it does not work
-    SparseMatrix copyOFG(problem.G);
+    //SparseMatrix copyOFG(problem.G);
 
     // TODO Notice we are using custom colsPermutation2
-    RankSPQR::PermutationType2 permuation = qrSolver.colsPermutation2();
+//     RankSPQR::PermutationType2 permuation = qrSolver.colsPermutation2();
 
-    problem.G = copyOFG * permuation;
+//     problem.G = copyOFG * permuation;
+    SparseMatrix copyOfG(problem.G);
+    problem.G = copyOfG * qrSolver.colsPermutation();
     BOOST_LOG_TRIVIAL(info) << "After Perm " << problem.G.cols();
-    problem.G.conservativeResize(problem.G.rows(), qrSolver.rank2());
+    problem.G.conservativeResize(problem.G.rows(), qrSolver.rank());
     BOOST_LOG_TRIVIAL(info) << "After Perm 2";
-    problem.c = permuation * problem.c;
+    problem.c = qrSolver.colsPermutation() * problem.c;
     // FIXME We have to keep track of removed columns, how do we compute final
     // value in post solve?
     BOOST_LOG_TRIVIAL(info) << "After Perm 3";
-    problem.c.conservativeResize(qrSolver.rank2());
+    problem.c.conservativeResize(qrSolver.rank());
     BOOST_LOG_TRIVIAL(info) << "After Perm 4";
   }
 
