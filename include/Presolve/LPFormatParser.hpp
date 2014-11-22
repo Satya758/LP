@@ -396,12 +396,32 @@ class LPFormatParser {
     // As suitesparse latest version are not returning (From 4.3.1) is not
     // returning rank in SPQR_istat[4] array as document says, so getting rank
     // from m_rank protected attr from eigen
-    class RankSPQR : public Eigen::SPQR<Eigen::SparseMatrix<double>> {
+    class RankSPQR : public Eigen::SPQR<SparseMatrix> {
+
      public:
+      typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic,
+                                       SPQR::Index> PermutationType2;
       // As original rank does not work, not overloading as it would lost in
       // time,
       // We have to comeback and fix this FIXME
+      // Rank problem is fixed its because Eigen is not compatible with
+      // suitesparse beyond 4.2.1, Only works with 4.2.1
+      // Headers are changed in suitesparse latest versions
       int rank2() const { return m_rank; }
+
+      // FIXME Report following bug to Eigen
+      // In SPQR module, Permuation matrix is not defined with Index, When
+      // different Index is chosen as in this case std::ptrdiff_t, problem.G =
+      // copyOFG * permuation; fails at compilation due to mismatch types
+      // Below method blindly copied from Eigen SPQR module, only difference is
+      // Type whihc it returns
+      PermutationType2 colsPermutation2() const {
+        eigen_assert(m_isInitialized && "Decomposition is not initialized.");
+        Index n = m_cR->ncol;
+        PermutationType2 colsPerm(n);
+        for (Index j = 0; j < n; j++) colsPerm.indices()(j) = m_E[j];
+        return colsPerm;
+      }
     };
 
     RankSPQR qrSolver;
@@ -415,12 +435,16 @@ class LPFormatParser {
     // do it
     BOOST_LOG_TRIVIAL(info) << "Before Copy: ";
     // TODO Witout copy it does not work
-    Eigen::SparseMatrix<double> copyOFG(problem.G);
-    problem.G = copyOFG * qrSolver.colsPermutation();
+    SparseMatrix copyOFG(problem.G);
+
+    // TODO Notice we are using custom colsPermutation2
+    RankSPQR::PermutationType2 permuation = qrSolver.colsPermutation2();
+
+    problem.G = copyOFG * permuation;
     BOOST_LOG_TRIVIAL(info) << "After Perm " << problem.G.cols();
     problem.G.conservativeResize(problem.G.rows(), qrSolver.rank2());
     BOOST_LOG_TRIVIAL(info) << "After Perm 2";
-    problem.c = qrSolver.colsPermutation() * problem.c;
+    problem.c = permuation * problem.c;
     // FIXME We have to keep track of removed columns, how do we compute final
     // value in post solve?
     BOOST_LOG_TRIVIAL(info) << "After Perm 3";

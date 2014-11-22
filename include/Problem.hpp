@@ -2,12 +2,19 @@
 #ifndef PROBLEM_HPP
 #define PROBLEM_HPP
 
+#include <cstddef>
+
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
 
 // lp means lineat programming
 // TODO Change to relavent namespace later
 namespace lp {
+
+// TODO Is this correct place to have solver typedef? It might make sense as
+// users also use this header to represent their matrices
+typedef Eigen::SparseMatrix<double, Eigen::ColMajor, std::ptrdiff_t>
+    SparseMatrix;
 
 // Used in LinearSolver
 // Template specialization for solve method (instead of boolean flag)
@@ -71,10 +78,10 @@ class Problem {
   // Objective to minimize
   Eigen::VectorXd c;
   // Inequality constraints
-  Eigen::SparseMatrix<double> G;
+  SparseMatrix G;
   Eigen::VectorXd h;
   // Equality constraints
-  Eigen::SparseMatrix<double> A;
+  SparseMatrix A;
   Eigen::VectorXd b;
 
   // Maximum number of iterations after which algorithm terminates if feasible

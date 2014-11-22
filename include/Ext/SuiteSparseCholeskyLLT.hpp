@@ -102,7 +102,7 @@ class SuiteSparseCholeskyLLT {
 
  private:
   // G
-  Eigen::SparseMatrix<double> getOmega(
+  SparseMatrix getOmega(
       const Scalings& scalings,
       boost::mpl::int_<static_cast<int>(lp::SolveFor::Initial)>) const {
     // TODO For initial, G Transpose is done twice unnecesarly
@@ -111,7 +111,7 @@ class SuiteSparseCholeskyLLT {
   }
 
   // W{-T} * G
-  Eigen::SparseMatrix<double> getOmega(
+  SparseMatrix getOmega(
       const Scalings& scalings,
       boost::mpl::int_<static_cast<int>(lp::SolveFor::StepDirection)>) const {
     return scalings.NNOInverse.asDiagonal() * problem.G;
@@ -119,7 +119,7 @@ class SuiteSparseCholeskyLLT {
 
   // G' * W{-1} * W{-T}
   // For initial its just G'
-  Eigen::SparseMatrix<double> getOmegaTilde(
+  SparseMatrix getOmegaTilde(
       const Scalings& scalings,
       boost::mpl::int_<static_cast<int>(lp::SolveFor::Initial)>) const {
     return problem.G.transpose();
@@ -127,7 +127,7 @@ class SuiteSparseCholeskyLLT {
 
   // G' * W{-1} * W{-T}
   // Transpose of diagonal matrix alters nothing
-  Eigen::SparseMatrix<double> getOmegaTilde(
+  SparseMatrix getOmegaTilde(
       const Scalings& scalings,
       boost::mpl::int_<static_cast<int>(lp::SolveFor::StepDirection)>) const {
     return omega.transpose() * scalings.NNOInverse.asDiagonal();
@@ -156,10 +156,10 @@ class SuiteSparseCholeskyLLT {
   // repeated calculations or copies (Product computaions are coslty)
 
   // G' * W{-1} * W{-T} Should be used in multiple solves to solve
-  Eigen::SparseMatrix<double> omegaTilde;  // rhsZCoefficient;
+  SparseMatrix omegaTilde;  // rhsZCoefficient;
 
   // G' * W{-1} Lets call it Omega
-  Eigen::SparseMatrix<double> omega;
+  SparseMatrix omega;
 };
 }
 

@@ -11,7 +11,7 @@
 #include <Solution.hpp>
 #include <Core/Solver.hpp>
 
-#include <Ext/NTScalings.hpp> 
+#include <Ext/NTScalings.hpp>
 #include <Ext/SuiteSparseCholeskyLLT.hpp>
 
 #include <Presolve/LPFormatParser.hpp>
