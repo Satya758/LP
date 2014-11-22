@@ -4,7 +4,7 @@ project(linearprogramming)
 
 # set(CMAKE_BUILD_TYPE "Debug")
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++14")
+set(CMAKE_CXX_FLAGS "-std=c++14 -fopenmp")
 
 add_subdirectory(include)
 add_subdirectory(src)
@@ -27,7 +27,7 @@ set(TBB_LIB "" CACHE PATH "Blas location")
 ####### Required Libraries ########################
 
 include_directories(${EIGEN_INC})
-include_directories(${BOOST_INC})   
+include_directories(${BOOST_INC})
 include_directories(${SS_INC})
 include_directories(${TBB_INC})
 

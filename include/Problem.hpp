@@ -98,30 +98,30 @@ class Problem {
   // TODO Some more Options
 };
 
-// std::ostream& operator<<(std::ostream& out, const Problem& problem) {
-//   using namespace std;
-//
-//   out << endl << "##################### Problem Start" << endl;
-//   out << "Value of c: " << endl << problem.c.rows() << endl;
-//   out << "Value of G: " << endl << "Rows: " << problem.G.rows()
-//       << " Cols: " << problem.G.cols() << endl;
-//   out << "Value of h: " << endl << problem.h.rows() << endl;
-//   out << "##################### Problem End" << endl;
-//
-//   return out;
-// }
-
 std::ostream& operator<<(std::ostream& out, const Problem& problem) {
   using namespace std;
 
   out << endl << "##################### Problem Start" << endl;
-  out << "Value of c: " << endl << problem.c << endl;
-  out << "Value of G: " << endl << problem.G << endl;
-  out << "Value of h: " << endl << problem.h << endl;
+  out << "Value of c: " << endl << problem.c.rows() << endl;
+  out << "Value of G: " << endl << "Rows: " << problem.G.rows()
+      << " Cols: " << problem.G.cols() << endl;
+  out << "Value of h: " << endl << problem.h.rows() << endl;
   out << "##################### Problem End" << endl;
 
   return out;
 }
+
+// std::ostream& operator<<(std::ostream& out, const Problem& problem) {
+//   using namespace std;
+//
+//   out << endl << "##################### Problem Start" << endl;
+//   out << "Value of c: " << endl << problem.c << endl;
+//   out << "Value of G: " << endl << problem.G << endl;
+//   out << "Value of h: " << endl << problem.h << endl;
+//   out << "##################### Problem End" << endl;
+//
+//   return out;
+// }
 
 // TODO Check if we can move this class to different header
 // Solution after newton step computed
