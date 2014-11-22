@@ -403,8 +403,9 @@ class LPFormatParser {
     // zeros, this is eigen way of doing, have to find reason and better way to
     // do it
     BOOST_LOG_TRIVIAL(info) << "Before Copy: ";
-//     Eigen::SparseMatrix<double> copyOFG(problem.G);
-    problem.G = problem.G * qrSolver.colsPermutation();
+    // TODO Witout copy it does not work
+    Eigen::SparseMatrix<double> copyOFG(problem.G);
+    problem.G = copyOFG * qrSolver.colsPermutation();
     BOOST_LOG_TRIVIAL(info) << "After Perm " << problem.G.cols();
     problem.G.conservativeResize(problem.G.rows(), qrSolver.rank());
     BOOST_LOG_TRIVIAL(info) << "After Perm 2";
