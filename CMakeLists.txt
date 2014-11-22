@@ -14,6 +14,7 @@ add_subdirectory(src)
 set(EIGEN_INC "" CACHE PATH "Eigen Include Directory") #No default value
 set(BOOST_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
 set(TBB_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
+set(SS_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
 # Header libs
 # Binaries
 set(BOOST_LOG_LIB "" CACHE PATH "Boost log library") #No default value
@@ -26,8 +27,8 @@ set(TBB_LIB "" CACHE PATH "Blas location")
 ####### Required Libraries ########################
 
 include_directories(${EIGEN_INC})
-include_directories(${BOOST_INC})
-
+include_directories(${BOOST_INC})   
+include_directories(${SS_INC})
 include_directories(${TBB_INC})
 
 #BOOST LOG
