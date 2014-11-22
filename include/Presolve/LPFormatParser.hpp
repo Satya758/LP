@@ -393,12 +393,23 @@ class LPFormatParser {
    * As equality for we don't delete rows, we check here for dependent columns
    */
   void removeRedundantRows(Problem& problem) const {
-    Eigen::SPQR<Eigen::SparseMatrix<double>> qrSolver;
+    // As suitesparse latest version are not returning (From 4.3.1) is not
+    // returning rank in SPQR_istat[4] array as document says, so getting rank
+    // from m_rank protected attr from eigen
+    class RankSPQR : public Eigen::SPQR<Eigen::SparseMatrix<double>> {
+     public:
+      // As original rank does not work, not overloading as it would lost in
+      // time,
+      // We have to comeback and fix this FIXME
+      int rank2() const { return m_rank; }
+    };
+
+    RankSPQR qrSolver;
     // TODO Use constants from common header
     qrSolver.setPivotThreshold(1.0e-10);
 
     qrSolver.compute(problem.G);
-    BOOST_LOG_TRIVIAL(info) << "Rank: " << qrSolver.rank();
+    BOOST_LOG_TRIVIAL(info) << "Rank: " << qrSolver.rank2();
     // TODO When I use same matrix on both side resultant matrix is full of
     // zeros, this is eigen way of doing, have to find reason and better way to
     // do it
@@ -407,13 +418,13 @@ class LPFormatParser {
     Eigen::SparseMatrix<double> copyOFG(problem.G);
     problem.G = copyOFG * qrSolver.colsPermutation();
     BOOST_LOG_TRIVIAL(info) << "After Perm " << problem.G.cols();
-    problem.G.conservativeResize(problem.G.rows(), qrSolver.rank());
+    problem.G.conservativeResize(problem.G.rows(), qrSolver.rank2());
     BOOST_LOG_TRIVIAL(info) << "After Perm 2";
     problem.c = qrSolver.colsPermutation() * problem.c;
     // FIXME We have to keep track of removed columns, how do we compute final
     // value in post solve?
     BOOST_LOG_TRIVIAL(info) << "After Perm 3";
-    problem.c.conservativeResize(qrSolver.rank());
+    problem.c.conservativeResize(qrSolver.rank2());
     BOOST_LOG_TRIVIAL(info) << "After Perm 4";
   }
 
