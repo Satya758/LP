@@ -161,13 +161,23 @@ void testSolver() {
 }
 
 int main(int argc, char **argv) {
-   //testSolver();
+  // testSolver();
+  boost::log::core::get()->set_filter(boost::log::trivial::severity >=
+                                      boost::log::trivial::info);
   lp::parser::LPFormatParser parser;
 
   BOOST_LOG_TRIVIAL(info) << "Started";
 
-  //   parser.parse("/home/satya/Desktop/test.lp");
-  parser.parse("/home/satya/Desktop/QiTest.lp");
+  //   lp::Problem problem = parser.parse("/home/satya/Desktop/QiTest.lp");
+  lp::Problem problem = parser.parse("/home/satya/Desktop/test.lp");
+
+  lp::Solver<lp::SuiteSparseCholeskyLLT<lp::NTScalings>, lp::NTScalings> solver(
+      problem);
+
+  BOOST_LOG_TRIVIAL(info) << "Started to solve";
+  lp::Solution solution = solver.solve();
+
+  BOOST_LOG_TRIVIAL(info) << solution;
 
   BOOST_LOG_TRIVIAL(info) << "Ended";
 

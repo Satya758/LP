@@ -39,7 +39,8 @@ enum class Operators {
   gt,
   ge,
   eq,
-  invalid, free // Added to handle free varaibles in Bounds
+  invalid,
+  free  // Added to handle free varaibles in Bounds
 };
 
 std::ostream& operator<<(std::ostream& out, const Operators& op) {
@@ -51,7 +52,7 @@ class OPSymbols : public qi::symbols<char, Operators> {
  public:
   OPSymbols() {
     add("<", Operators::le)("<=", Operators::le)(">", Operators::gt)(
-        ">=", Operators::ge)("=", Operators::eq) ("free", Operators::free);
+        ">=", Operators::ge)("=", Operators::eq)("free", Operators::free);
   }
 };
 
@@ -190,7 +191,7 @@ class LPFormatGrammar : public qi::grammar<Iterator, ParsedObject(), Skip> {
     parsedObj = objectiveText >> +objective >> constraintsText >>
                 +constraints >> -boundText >> *bounds;
 
-    // BOOST_SPIRIT_DEBUG_NODE(parsedObj);
+    //     BOOST_SPIRIT_DEBUG_NODE(parsedObj);
   }
 
   qi::rule<Iterator, ParsedObject(), Skip> parsedObj;
@@ -216,15 +217,17 @@ class LPFormatGrammar : public qi::grammar<Iterator, ParsedObject(), Skip> {
 
 class LPFormatParser {
  public:
-  void parse(const std::string& fileName) const {
+  Problem parse(const std::string& fileName) const {
     using namespace qi;
 
     std::ifstream fileStream(fileName, std::ios_base::in);
 
     if (!fileStream) {
       BOOST_LOG_TRIVIAL(info) << "Failed to read file";
+      // FIXME Had to return problem, but problem is not created, may be raise
+      // exception
 
-      return;
+      // return;
     }
 
     std::string fileStorage;
@@ -253,7 +256,9 @@ class LPFormatParser {
 
     Problem problem = getProblem(obj);
 
-    BOOST_LOG_TRIVIAL(info) << problem;
+    BOOST_LOG_TRIVIAL(info) << "After presolve: " << problem;
+
+    return problem;
   }
 
  private:
@@ -280,13 +285,16 @@ class LPFormatParser {
    */
   Problem getProblem(const ParsedObject& parsedObj) const {
 
-    std::vector<double> c(parsedObj.objective.size());
+    std::vector<double> c;
+    //     c.reserve(parsedObj.objective.size());
     // Approximate size, worst case actual size will be double if there are
     // equality constraints
     // Reseve some size
-    std::vector<double> h(2 * parsedObj.constraints.size() +
-                          2 * parsedObj.bounds.size());
+    std::vector<double> h;
+    //     h.reserve(2 * parsedObj.constraints.size() + 2 *
+    // parsedObj.bounds.size());
     std::unordered_map<std::string, int> nameMap;
+    //     nameMap.reserve(parsedObj.objective.size());
 
     int index = 0;
     for (const SCS& scs : parsedObj.objective) {
@@ -300,16 +308,20 @@ class LPFormatParser {
           break;
       }
 
-      nameMap.insert({{scs.name, index}});
+      nameMap.insert({scs.name, index});
 
       ++index;
     }
 
+    BOOST_LOG_TRIVIAL(info) << "Got the names " << nameMap.size();
     std::vector<CT> constraintTriplets =
-        getConstraintTriplets(parsedObj, nameMap, h);
+        getConstraintTriplets(parsedObj, nameMap, c, h);
 
-    addBounds(parsedObj, nameMap, constraintTriplets, h);
+    BOOST_LOG_TRIVIAL(info) << "Got the constraintTriplets "
+                            << constraintTriplets.size();
 
+    addBounds(parsedObj, nameMap, constraintTriplets, c, h);
+    BOOST_LOG_TRIVIAL(info) << "Got the bounds " << constraintTriplets.size();
     return getProblem(constraintTriplets, h, c);
   }
 
@@ -318,28 +330,31 @@ class LPFormatParser {
                      const std::vector<double>& h,
                      const std::vector<double>& c) const {
 
-    //BOOST_LOG_TRIVIAL(info) << "H: " << h << "C: ";// << c << "G: ";// << constraintTriplets;
     Problem problem(h.size(), 0, c.size());
     {
-    // Make objective
-    int index = 0;
-    for(const double value : c ) {
-	 problem.c(0) = value;
-	 ++index;
-    }}
-
-    { // Make inequality rhs
+      // Make objective
       int index = 0;
-      for(const double value : h ) {
-	 problem.h(0) = value;
-	 ++index;
+      for (const double value : c) {
+        problem.c(index) = value;
+        ++index;
+      }
     }
+
+    {  // Make inequality rhs
+      int index = 0;
+      for (const double value : h) {
+        problem.h(index) = value;
+        ++index;
+      }
     }
 
     {
       // Make inequality consraints lhs
-      problem.G.setFromTriplets(constraintTriplets.begin(), constraintTriplets.end());
+      problem.G.setFromTriplets(constraintTriplets.begin(),
+                                constraintTriplets.end());
     }
+
+    BOOST_LOG_TRIVIAL(info) << "Before QR: " << problem;
 
     removeRedundantRows(problem);
 
@@ -366,35 +381,56 @@ class LPFormatParser {
    *    rows to top, and then Rank is used to resize (shrink) the row size of
    *    matrix, which will also remove all dependent rows.
    * 5. Same is done for RHS
-   * 6. After this original sizes given to Problem constructor are not any more valid
+   * 6. After this original sizes given to Problem constructor are not any more
+   *valid
+   * FIXME Currently using 4.2.1 as rank is not return in cholmod_cc (common)
+   * structure for some reason, but m_rank is Eigen class has rank value, we
+   *have
+   * to inherit that class and modify getRank method to get actual rank to
+   *delete
+   * dependent columns
+   *
+   * As equality for we don't delete rows, we check here for dependent columns
    */
   void removeRedundantRows(Problem& problem) const {
     Eigen::SPQR<Eigen::SparseMatrix<double>> qrSolver;
     // TODO Use constants from common header
     qrSolver.setPivotThreshold(1.0e-10);
 
-    qrSolver.compute(problem.G.transpose());
+    qrSolver.compute(problem.G);
+    BOOST_LOG_TRIVIAL(info) << "Rank: " << qrSolver.rank();
     // TODO When I use same matrix on both side resultant matrix is full of
     // zeros, this is eigen way of doing, have to find reason and better way to
     // do it
-    Eigen::SparseMatrix<double> copyOFG = problem.G;
-    problem.G = qrSolver.colsPermutation() * copyOFG;
-
-    problem.G.conservativeResize(qrSolver.rank(), problem.G.cols());
-
-    problem.h = qrSolver.colsPermutation() * problem.h;
-
-    problem.h.conservativeResize(qrSolver.rank());
-
+    BOOST_LOG_TRIVIAL(info) << "Before Copy: ";
+//     Eigen::SparseMatrix<double> copyOFG(problem.G);
+    problem.G = problem.G * qrSolver.colsPermutation();
+    BOOST_LOG_TRIVIAL(info) << "After Perm " << problem.G.cols();
+    problem.G.conservativeResize(problem.G.rows(), qrSolver.rank());
+    BOOST_LOG_TRIVIAL(info) << "After Perm 2";
+    problem.c = qrSolver.colsPermutation() * problem.c;
+    // FIXME We have to keep track of removed columns, how do we compute final
+    // value in post solve?
+    BOOST_LOG_TRIVIAL(info) << "After Perm 3";
+    problem.c.conservativeResize(qrSolver.rank());
+    BOOST_LOG_TRIVIAL(info) << "After Perm 4";
   }
 
   // FIXME Raw loops refactor the code!!
   std::vector<CT> getConstraintTriplets(
       const ParsedObject& parsedObj,
-      const std::unordered_map<std::string, int>& nameMap,
+      std::unordered_map<std::string, int>& nameMap, std::vector<double>& c,
       std::vector<double>& h) const {
 
     std::vector<CT> constraintTriplets;
+    // Number of elements in constraints are equal to row * columns, in this
+    // case rows are in constraints and columns are in objective, to
+    // consider additional added rows (because of eqaulity and bounds)
+    // we just double the size of row * columns
+    // as more is better than less
+    //     constraintTriplets.reserve(2 * parsedObj.objective.size() *
+    //                                parsedObj.constraints.size());
+
     int rowIndex = 0;
     for (const Constraints& ct : parsedObj.constraints) {
       int signModifier;
@@ -415,7 +451,7 @@ class LPFormatParser {
 
       if (!isEqual) {
         for (const SCS& scs : ct.lhs) {
-          const int colIndex = nameMap.at(scs.name);
+          int colIndex = getColIndex(scs.name, nameMap, c);
 
           switch (scs.sign) {
             case '+':
@@ -437,10 +473,11 @@ class LPFormatParser {
         while (doubleInserter < 2) {
           if (doubleInserter == 1) {
             geSign = -1;
+            ++rowIndex;  // Increment row for duplicate entry in next line
           }
 
           for (const SCS& scs : ct.lhs) {
-            const int colIndex = nameMap.at(scs.name);
+            int colIndex = getColIndex(scs.name, nameMap, c);
 
             switch (scs.sign) {
               case '+':
@@ -454,25 +491,52 @@ class LPFormatParser {
             }
           }
           h.push_back(geSign * ct.rhs);
-          ++rowIndex;  // Increment row for duplicate entry in next line
           ++doubleInserter;
         }
       }
 
+      // BOOST_LOG_TRIVIAL(info) << "Added row: " << rowIndex;
       ++rowIndex;
     }
 
     return constraintTriplets;
   }
 
+  // Returns column index to insert into
+  // We need objective as we have to add zero to objective for varaible that are
+  // not found in objective definition
+  int getColIndex(const std::string& name,
+                  std::unordered_map<std::string, int>& nameMap,
+                  std::vector<double>& c) const {
+    int colIndex;
+
+    std::unordered_map<std::string, int>::const_iterator elem =
+        nameMap.find(name);
+
+    if (elem == nameMap.end()) {
+      c.push_back(0);
+      // We will add it to the end
+      colIndex = c.size() - 1;
+      // Insert for next reference
+      nameMap.insert({name, colIndex});
+    } else {
+      colIndex = elem->second;
+    }
+
+    return colIndex;
+  }
+
   // // FIXME Raw loops refactor the code!!
   void addBounds(const ParsedObject& parsedObj,
-                 const std::unordered_map<std::string, int>& nameMap,
-                 std::vector<CT> constraintTriplets, std::vector<double>& h) const {
-    // Added rows till now
-    int rowIndex = h.size();
+                 std::unordered_map<std::string, int>& nameMap,
+                 std::vector<CT>& constraintTriplets, std::vector<double>& c,
+                 std::vector<double>& h) const {
+    // rowIndex is incremented for every addition, so there is so much of
+    // FIXME duplication
+
+    int rowIndex = h.size() - 1;
     for (const Bounds& bounds : parsedObj.bounds) {
-      int colIndex = nameMap.at(bounds.name);
+      int colIndex = getColIndex(bounds.name, nameMap, c);
 
       if (bounds.uOp != Operators::invalid && !std::isinf(bounds.upper)) {
         // There is no lt and gt
@@ -480,16 +544,19 @@ class LPFormatParser {
           // Push as is with coefficient equal to 1, no requirement of sign
           // change
           case Operators::le:
+            ++rowIndex;
             constraintTriplets.push_back(CT(rowIndex, colIndex, 1));
             h.push_back(bounds.upper);
             break;
           // Sign change
           case Operators::ge:
+            ++rowIndex;
             constraintTriplets.push_back(CT(rowIndex, colIndex, -1));
             h.push_back(-bounds.upper);
             break;
           // Insert two records with different signs
           case Operators::eq:
+            ++rowIndex;
             constraintTriplets.push_back(CT(rowIndex, colIndex, 1));
             h.push_back(bounds.upper);
             ++rowIndex;
@@ -497,17 +564,19 @@ class LPFormatParser {
             h.push_back(-bounds.upper);
             break;
         }
-      } else if (bounds.lOp != Operators::invalid &&
-                 !std::isinf(bounds.lower)) {
+      }
+      if (bounds.lOp != Operators::invalid && !std::isinf(bounds.lower)) {
         switch (bounds.lOp) {
           // Push as is with coefficient equal to 1, no requirement of sign
           // change
           case Operators::ge:
+            ++rowIndex;
             constraintTriplets.push_back(CT(rowIndex, colIndex, 1));
             h.push_back(bounds.lower);
             break;
           // Sign change
           case Operators::le:
+            ++rowIndex;
             constraintTriplets.push_back(CT(rowIndex, colIndex, -1));
             h.push_back(-bounds.lower);
             break;
@@ -517,8 +586,6 @@ class LPFormatParser {
             break;
         }
       }
-
-      ++rowIndex;
     }
   }
 };

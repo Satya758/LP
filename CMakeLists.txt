@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.1)
 
 project(linearprogramming)
 
-set(CMAKE_BUILD_TYPE "Debug")
+# set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++14")
 
 add_subdirectory(include)
@@ -12,6 +13,7 @@ add_subdirectory(src)
 # Header libs
 set(EIGEN_INC "" CACHE PATH "Eigen Include Directory") #No default value
 set(BOOST_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
+set(TBB_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
 # Header libs
 # Binaries
 set(BOOST_LOG_LIB "" CACHE PATH "Boost log library") #No default value
@@ -19,11 +21,14 @@ set(SS_CHOLMOD_LIB "" CACHE PATH "SuiteSparse CHOLMOD") #No default value
 set(METIS_LIB "" CACHE PATH "Metis location")
 set(LAPACK_LIB "" CACHE PATH "Lapack location")
 set(BLAS_LIB "" CACHE PATH "Blas location")
+set(TBB_LIB "" CACHE PATH "Blas location")
 # Binaries
 ####### Required Libraries ########################
 
 include_directories(${EIGEN_INC})
 include_directories(${BOOST_INC})
+
+include_directories(${TBB_INC})
 
 #BOOST LOG
 add_definitions(-DBOOST_ALL_DYN_LINK)
@@ -45,6 +50,7 @@ find_library(SS_UMFPACK umfpack PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 find_library(SS_QR spqr PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 #SuiteSparse
 
+find_library(TBB tbb PATHS ${TBB_LIB} NO_DEFAULT_PATH)
 find_library(METIS metis PATHS ${METIS_LIB} NO_DEFAULT_PATH)
 find_library(LAPACK lapack PATHS ${LAPACK_LIB} NO_DEFAULT_PATH)
 find_library(BLAS openblas PATHS ${BLAS_LIB} NO_DEFAULT_PATH)
@@ -62,7 +68,7 @@ target_link_libraries(${PROJECT_NAME}
 		      ${SS_CHOLMOD}
 		      ${SS_CONFIG}
 		      ${BLAS} ${LAPACK}
-		      ${METIS} ${SS_AMD} ${SS_CAMD} ${SS_COLAMD} ${SS_CCOLAMD}
+		      ${METIS} ${SS_AMD} ${SS_CAMD} ${SS_COLAMD} ${SS_CCOLAMD} ${TBB}
 		      pthread )
 
 install(TARGETS linearprogramming RUNTIME DESTINATION bin)
