@@ -20,7 +20,7 @@ class CommandOptions {
  public:
   std::string fileName;
   int logOptions;
-};
+}; 
 
 CommandOptions getOptions(int argc, char **argv) {
   namespace po = boost::program_options;

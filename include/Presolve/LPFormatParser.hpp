@@ -187,7 +187,7 @@ class LPFormatGrammar : public qi::grammar<Iterator, ParsedObject(), Skip> {
     constraints = +constraintsLHS >> opSymbols >> double_;
 
     boundText = lit("Bounds");
-    boundVarName = +(alnum[_val += _1] - "End");
+    boundVarName = lexeme[+(alnum[_val += _1] - "End")];
     luBounds = double_ | bSymbols;
     bounds = -luBounds >> -opSymbols >> boundVarName >> -opSymbols >> -luBounds;
 
