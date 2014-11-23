@@ -11,6 +11,7 @@
 #include <iostream>
 #include <type_traits>
 #include <cmath>
+#include <cstdlib>
 
 #include <boost/log/trivial.hpp>
 #include <boost/spirit/include/qi.hpp>
@@ -417,47 +418,46 @@ class LPFormatParser {
       // copyOFG * permuation; fails at compilation due to mismatch types
       // Below method blindly copied from Eigen SPQR module, only difference is
       // Type whihc it returns
-      PermutationType2 colsPermutation2() const {
+      // FIXME Documentation on why we have created our own SparseMatrix not
+      // using PermutationMatrix provided by Eigen
+      SparseMatrix colsPermutation2() const {
         eigen_assert(m_isInitialized && "Decomposition is not initialized.");
         Index n = m_cR->ncol;
-        PermutationType2 colsPerm(n);
-        for (Index j = 0; j < n; j++) colsPerm.indices()(j) = m_E[j];
-        return colsPerm;
+
+        std::vector<CT> permTriplets;
+
+        for (Index j = 0; j < n; j++) {
+          permTriplets.push_back(CT(m_E[j], j, 1));
+        }
+
+        SparseMatrix permuation(n, n);
+        permuation.setFromTriplets(permTriplets.begin(), permTriplets.end());
+        return permuation;
       }
     };
 
-    //RankSPQR qrSolver;
-    Eigen::SparseQR<SparseMatrix, Eigen::COLAMDOrdering<std::ptrdiff_t>> qrSolver;
+    RankSPQR qrSolver;
+    //     Eigen::SparseQR<SparseMatrix, Eigen::COLAMDOrdering<std::ptrdiff_t>>
+    // qrSolver;
     // TODO Use constants from common header
     qrSolver.setPivotThreshold(1.0e-10);
-
-
     problem.G.makeCompressed();
+
     qrSolver.compute(problem.G);
 
-    BOOST_LOG_TRIVIAL(info) << "Rank: " << qrSolver.rank();
-    // TODO When I use same matrix on both side resultant matrix is full of
-    // zeros, this is eigen way of doing, have to find reason and better way to
-    // do it
     BOOST_LOG_TRIVIAL(info) << "Before Copy: ";
-    // TODO Witout copy it does not work
-    //SparseMatrix copyOFG(problem.G);
 
     // TODO Notice we are using custom colsPermutation2
-//     RankSPQR::PermutationType2 permuation = qrSolver.colsPermutation2();
+    SparseMatrix permuation = qrSolver.colsPermutation2();
 
-//     problem.G = copyOFG * permuation;
-    SparseMatrix copyOfG(problem.G);
-    problem.G = copyOfG * qrSolver.colsPermutation();
-    BOOST_LOG_TRIVIAL(info) << "After Perm " << problem.G.cols();
+    problem.G = problem.G * permuation;
+
     problem.G.conservativeResize(problem.G.rows(), qrSolver.rank());
-    BOOST_LOG_TRIVIAL(info) << "After Perm 2";
-    problem.c = qrSolver.colsPermutation() * problem.c;
+
+    problem.c = permuation * problem.c;
     // FIXME We have to keep track of removed columns, how do we compute final
     // value in post solve?
-    BOOST_LOG_TRIVIAL(info) << "After Perm 3";
     problem.c.conservativeResize(qrSolver.rank());
-    BOOST_LOG_TRIVIAL(info) << "After Perm 4";
   }
 
   // FIXME Raw loops refactor the code!!
