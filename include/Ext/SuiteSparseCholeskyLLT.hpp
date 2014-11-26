@@ -1,12 +1,46 @@
 #ifndef SUITESPARSE_CHOLESKYLLT_HPP
 #define SUITESPARSE_CHOLESKYLLT_HPP
 
+// #include <Eigen/PaStiXSupport>
+
 #include <boost/log/trivial.hpp>
 #include <boost/mpl/int.hpp>
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/CholmodSupport>
+
+//////////////////////////////////////////////////////////////////
+// FIXME Boost is having wierd errors when <Eigen/PaStiXSupport>, so basicallt
+// copied code from same file and pasted here to shutup boost log/spirit,
+// preprocessor
+#include "Eigen/SparseCore"
+
+#include "Eigen/src/Core/util/DisableStupidWarnings.h"
+//****************************************************************************//
+// TODO Why do I have to add this again they were any way added in
+// <Eigen/PaStiXSupport>, but are not considered for some reason, without
+// these
+// there are compiler errors
+#include <complex>
+extern "C" {
+#include <pastix_nompi.h>
+#include <pastix.h>
+}
+
+#ifdef complex
+#undef complex
+#endif
+
+#define COMPLEX std::complex<float>
+#define DCOMPLEX std::complex<double>
+//****************************************************************************//
+#include "Eigen/src/misc/Solve.h"
+#include "Eigen/src/misc/SparseSolve.h"
+#include "Eigen/src/PaStiXSupport/PaStiXSupport.h"
+
+#include "Eigen/src/Core/util/ReenableStupidWarnings.h"
+//////////////////////////////////////////////////////////////////
 
 #include <Problem.hpp>
 
@@ -57,12 +91,23 @@ class SuiteSparseCholeskyLLT {
     omegaTilde =
         getOmegaTilde(scalings, boost::mpl::int_<static_cast<int>(solveFor)>());
 
+    //     BOOST_LOG_TRIVIAL(info) << " Rows: " << omega.rows() << " Cols: " <<
+    // omega.cols() <<  " NNZ: " << omega.nonZeros();
+    //     BOOST_LOG_TRIVIAL(info) << "Mul start";
+    //     SparseMatrix temp = omega * omega.transpose();
+    //     BOOST_LOG_TRIVIAL(info) << "Mul end";
+    //     BOOST_LOG_TRIVIAL(info) << " Rows: " << temp.rows() << " Cols: " <<
+    // temp.cols() <<  " NNZ: " << temp.nonZeros();
     // G' * W{-1} * W{-T} * G
     solver.compute(omega.transpose() * omega);
 
     if (solver.info() != Eigen::Success) {
       // TODO Raise exception maybe Matrix is singular
       BOOST_LOG_TRIVIAL(error) << "Factorization failed";
+      // FIXME As of now I do not know what to do, if matrix is not positive
+      // definite
+      throw std::runtime_error(
+          "Factorization failed...Matrix is not positive definite");
     }
   }
 
@@ -151,7 +196,8 @@ class SuiteSparseCholeskyLLT {
 
   const lp::Problem& problem;
   // Custom Solver
-  Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double, Eigen::Lower>> solver;
+//   Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double, Eigen::Lower>> solver;
+      Eigen::PastixLDLT<Eigen::SparseMatrix<double>, Eigen::Lower> solver;
   // All below variables are used to store intermediate results to avoid
   // repeated calculations or copies (Product computaions are coslty)
 

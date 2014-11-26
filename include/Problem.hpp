@@ -64,7 +64,7 @@ class Problem {
   // Problem constructor forces to enter dimensions to have valid entries for
   // all related matrices
   Problem(int inequalityRows, int equalityRows, int cols,
-          int maxIterations_ = 100, double relativeGapTolerance_ = 1e-6,
+          int maxIterations_ = 200, double relativeGapTolerance_ = 1e-6,
           double gapTolerance_ = 1e-7, double residualTolerance_ = 1e-7)
       : G(inequalityRows, cols),
         h(inequalityRows),
@@ -98,30 +98,30 @@ class Problem {
   // TODO Some more Options
 };
 
-// std::ostream& operator<<(std::ostream& out, const Problem& problem) {
-//   using namespace std;
-//
-//   out << endl << "##################### Problem Start" << endl;
-//   out << "Value of c: " << endl << problem.c.rows() << endl;
-//   out << "Value of G: " << endl << "Rows: " << problem.G.rows()
-//       << " Cols: " << problem.G.cols() << endl;
-//   out << "Value of h: " << endl << problem.h.rows() << endl;
-//   out << "##################### Problem End" << endl;
-//
-//   return out;
-// }
-
 std::ostream& operator<<(std::ostream& out, const Problem& problem) {
   using namespace std;
 
   out << endl << "##################### Problem Start" << endl;
-  out << "Value of c: " << endl << problem.c << endl;
-  out << "Value of G: " << endl << problem.G << endl;
-  out << "Value of h: " << endl << problem.h << endl;
+  out << "Value of c: " << endl << problem.c.rows() << endl;
+  out << "Value of G: " << endl << "Rows: " << problem.G.rows()
+      << " Cols: " << problem.G.cols() << endl;
+  out << "Value of h: " << endl << problem.h.rows() << endl;
   out << "##################### Problem End" << endl;
 
   return out;
 }
+
+// std::ostream& operator<<(std::ostream& out, const Problem& problem) {
+//   using namespace std;
+//
+//   out << endl << "##################### Problem Start" << endl;
+//   out << "Value of c: " << endl << problem.c << endl;
+//   out << "Value of G: " << endl << problem.G << endl;
+//   out << "Value of h: " << endl << problem.h << endl;
+//   out << "##################### Problem End" << endl;
+//
+//   return out;
+// }
 
 // TODO Check if we can move this class to different header
 // Solution after newton step computed

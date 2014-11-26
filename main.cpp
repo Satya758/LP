@@ -2,7 +2,7 @@
 #include <string>
 #include <iostream>
 
-// #include <boost/log/core.hpp>
+#include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/program_options.hpp>
@@ -20,7 +20,7 @@ class CommandOptions {
  public:
   std::string fileName;
   int logOptions;
-}; 
+};
 
 CommandOptions getOptions(int argc, char **argv) {
   namespace po = boost::program_options;
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
   BOOST_LOG_TRIVIAL(info) << "Started to solve";
   lp::Solution solution = solver.solve();
 
-  BOOST_LOG_TRIVIAL(info) << solution;
+    BOOST_LOG_TRIVIAL(info) << solution;
 
   BOOST_LOG_TRIVIAL(info) << "Ended";
 

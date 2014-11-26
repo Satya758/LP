@@ -42,7 +42,9 @@ class Solver {
     const double residualY0{std::max(1.0, problem.b.norm())};
     const double residualZ0{std::max(1.0, problem.h.norm())};
 
+    BOOST_LOG_TRIVIAL(info) << "Compute Initial Point ";
     Point currentPoint = getInitialPoint();
+    BOOST_LOG_TRIVIAL(info) << "Got Initial Point ";
 
     Residual tolerantResidual(problem);
 
@@ -138,9 +140,9 @@ class Solver {
 
     Point point(problem);
     Scalings scalings;
-
+    BOOST_LOG_TRIVIAL(info) << "Factorization for Initial Point";
     linearSolver.template factor<lp::SolveFor::Initial>(scalings);
-
+    BOOST_LOG_TRIVIAL(info) << "Factorization Done... for Initial Point";
     {
       // Get Primal initial points
       Eigen::VectorXd rhsX(problem.c.rows());
@@ -203,6 +205,7 @@ class Solver {
    */
   NewtonDirection getSubSolution(const Scalings& scalings) {
     // Only one factorization in loop is done here
+    BOOST_LOG_TRIVIAL(info) << "First time Factor";
     linearSolver.template factor<lp::SolveFor::StepDirection>(scalings);
 
     Eigen::VectorXd rhsX(-1 * problem.c);

@@ -12,6 +12,7 @@
 #include <type_traits>
 #include <cmath>
 #include <cstdlib>
+#include <algorithm>
 
 #include <boost/log/trivial.hpp>
 #include <boost/spirit/include/qi.hpp>
@@ -163,11 +164,11 @@ class LPFormatGrammar : public qi::grammar<Iterator, ParsedObject(), Skip> {
   LPFormatGrammar() : LPFormatGrammar::base_type(parsedObj) {
     using namespace qi;
 
-    objectiveText = lit("Minimize") >> *(+alnum >> lit(":"));
+    objectiveText = lit("Minimize") >> *(+char_("0-9a-zA-Z_.") >> lit(":"));
     // TODO Default value is + here
     sign = char_("+") | char_("-");  // | attr("+");
 
-    objectiveName = +(alnum[_val += _1] - "Subject To");
+    objectiveName = +(char_("0-9a-zA-Z_.")[_val += _1] - "Subject To");
 
     // TODO Default value does not work attr(1)?
     // Had to add Default value 1 to double, when converting from my own data
@@ -175,10 +176,10 @@ class LPFormatGrammar : public qi::grammar<Iterator, ParsedObject(), Skip> {
     objective = -sign >> -double_ >> objectiveName;
 
     constraintsText = lit("Subject To");
-    constraintName = (+alnum >> lit(":"));
+    constraintName = (+char_("0-9a-zA-Z_.") >> lit(":"));
     // Here we dont need use difference operator as in objectiveName because
     // constraints end with double after inequality/equality operator
-    constraintVarName = +(alnum[_val += _1] - ("Bounds"));
+    constraintVarName = +(char_("0-9a-zA-Z_.")[_val += _1] - ("Bounds"));
 
     // We are not storing constraint name
     constraintsLHS = -constraintName >> -sign >> -double_ >> constraintVarName;
@@ -187,14 +188,14 @@ class LPFormatGrammar : public qi::grammar<Iterator, ParsedObject(), Skip> {
     constraints = +constraintsLHS >> opSymbols >> double_;
 
     boundText = lit("Bounds");
-    boundVarName = lexeme[+(alnum[_val += _1] - "End")];
+    boundVarName = lexeme[+(char_("0-9a-zA-Z_.")[_val += _1] - "End")];
     luBounds = double_ | bSymbols;
     bounds = -luBounds >> -opSymbols >> boundVarName >> -opSymbols >> -luBounds;
 
     parsedObj = objectiveText >> +objective >> constraintsText >>
                 +constraints >> -boundText >> *bounds;
 
-    //     BOOST_SPIRIT_DEBUG_NODE(parsedObj);
+    //         BOOST_SPIRIT_DEBUG_NODE(parsedObj);
   }
 
   qi::rule<Iterator, ParsedObject(), Skip> parsedObj;
@@ -286,7 +287,7 @@ class LPFormatParser {
    *    so that we know the size, and create Problem object with known sizes
    *
    */
-  Problem getProblem(const ParsedObject& parsedObj) const {
+  Problem getProblem(ParsedObject& parsedObj) const {
 
     std::vector<double> c;
     //     c.reserve(parsedObj.objective.size());
@@ -323,6 +324,7 @@ class LPFormatParser {
     BOOST_LOG_TRIVIAL(info) << "Got the constraintTriplets "
                             << constraintTriplets.size();
 
+    addMissingBounds(nameMap, parsedObj);
     addBounds(parsedObj, nameMap, constraintTriplets, c, h);
     BOOST_LOG_TRIVIAL(info) << "Got the bounds " << constraintTriplets.size();
     return getProblem(constraintTriplets, h, c);
@@ -361,6 +363,8 @@ class LPFormatParser {
 
     removeRedundantRows(problem);
 
+    // FIXME Remove
+//     printInCVXSparseForm(problem);
     return problem;
   }
 
@@ -441,11 +445,14 @@ class LPFormatParser {
     // qrSolver;
     // TODO Use constants from common header
     qrSolver.setPivotThreshold(1.0e-10);
-    problem.G.makeCompressed();
 
     qrSolver.compute(problem.G);
 
-    BOOST_LOG_TRIVIAL(info) << "Before Copy: ";
+    BOOST_LOG_TRIVIAL(info) << "Rank col: " << qrSolver.rank();
+    if (qrSolver.rank() == problem.G.cols()) {
+      // Nothing to change, return peacefully
+      return;
+    }
 
     // TODO Notice we are using custom colsPermutation2
     SparseMatrix permuation = qrSolver.colsPermutation2();
@@ -454,10 +461,14 @@ class LPFormatParser {
 
     problem.G.conservativeResize(problem.G.rows(), qrSolver.rank());
 
-    problem.c = permuation * problem.c;
+    problem.c = problem.c.transpose() * permuation;
     // FIXME We have to keep track of removed columns, how do we compute final
     // value in post solve?
     problem.c.conservativeResize(qrSolver.rank());
+    // FIXME So that muliplication inside solver will not result in inconsistent
+    // dimensions
+    // As there is no data we can do resize instead of conservativeResize
+    problem.A.resize(problem.A.rows(), qrSolver.rank());
   }
 
   // FIXME Raw loops refactor the code!!
@@ -559,6 +570,7 @@ class LPFormatParser {
 
     if (elem == nameMap.end()) {
       c.push_back(0);
+      //       BOOST_LOG_TRIVIAL(info) << "Name not found: " << name;
       // We will add it to the end
       colIndex = c.size() - 1;
       // Insert for next reference
@@ -571,6 +583,14 @@ class LPFormatParser {
   }
 
   // // FIXME Raw loops refactor the code!!
+  /**
+   * In LP format if varaible is not specified in the bounds
+   * or not bounded in constraints, its considered to be in positive orthant
+   * i.e. by default x >= 0
+   *
+   * By this time all names are in nameMap, so missing names in bounds will be
+   * added to bounds, here nameMap is source and bounds is target
+   */
   void addBounds(const ParsedObject& parsedObj,
                  std::unordered_map<std::string, int>& nameMap,
                  std::vector<CT>& constraintTriplets, std::vector<double>& c,
@@ -630,6 +650,85 @@ class LPFormatParser {
             break;
         }
       }
+    }
+  }
+
+  /**
+   * Missing bounds in LP format should be positive orthant
+   * Unfortunately for us, bounds can also be represted in constraints
+   * so we have to check row signleton constriants before adding missing
+   * pieces to bounds
+   */
+  void addMissingBounds(const std::unordered_map<std::string, int>& nameMap,
+                        ParsedObject& parsedObject) const {
+    using namespace std;
+
+    for (const auto& name : nameMap) {
+      // Check in bounds
+      const auto& boundIter = find_if(
+          begin(parsedObject.bounds), end(parsedObject.bounds),
+          [&](Bounds & bound)->bool const { return name.first == bound.name; });
+
+      // Check in constraints they have to be singletons
+      const auto& constraintIter = find_if(
+          begin(parsedObject.constraints), end(parsedObject.constraints),
+          [&](Constraints & constraint)->bool const {
+            if (constraint.lhs.size() == 1 &&
+                constraint.lhs.at(0).name == name.first) {
+              return true;
+            }
+          });
+
+      if (boundIter == end(parsedObject.bounds) &&
+          constraintIter == end(parsedObject.constraints)) {
+        // Not found
+        Bounds bound;
+        bound.name = name.first;
+        bound.uOp = Operators::ge;
+        bound.upper = 0;
+        parsedObject.bounds.push_back(bound);
+      }
+    }
+  }
+
+  // FIXME Remove, just for testing
+  void printInCVXSparseForm(const Problem& problem1) const {
+    int rows = problem1.G.rows();
+    int cols = problem1.G.cols();
+
+    Problem* problem = const_cast<Problem*>(&problem1);
+
+    std::vector<int> rowIndex;
+    std::vector<int> colIndex;
+    BOOST_LOG_TRIVIAL(info) << std::endl << "Values ";
+    for (int i = 0; i < rows; ++i) {
+      for (int j = 0; j < cols; ++j) {
+        double value = problem->G.coeffRef(i, j);
+        if (value != 0) {
+          std::cout << value << ", ";
+
+          rowIndex.push_back(i);
+          colIndex.push_back(j);
+        }
+      }
+    }
+    BOOST_LOG_TRIVIAL(info) << std::endl << "Rows ";
+    for (int i : rowIndex) {
+      std::cout << i << ", ";
+    }
+    BOOST_LOG_TRIVIAL(info) << std::endl << "Cols ";
+    for (int j : colIndex) {
+      std::cout << j << ", ";
+    }
+
+    BOOST_LOG_TRIVIAL(info) << std::endl << "Objective ";
+    for (int i = 0; i < cols; ++i) {
+      std::cout << problem->c(i) << ", ";
+    }
+
+    BOOST_LOG_TRIVIAL(info) << std::endl << "Rhs ";
+    for (int i = 0; i < rows; ++i) {
+      std::cout << problem->h(i) << ", ";
     }
   }
 };

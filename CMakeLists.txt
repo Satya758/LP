@@ -13,8 +13,9 @@ add_subdirectory(src)
 # Header libs
 set(EIGEN_INC "" CACHE PATH "Eigen Include Directory") #No default value
 set(BOOST_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
-set(TBB_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
-set(SS_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
+set(TBB_INC "" CACHE PATH "TBB Lib Include Directory") #No default value
+set(SS_INC "" CACHE PATH "SuiteSparse Lib Include Directory") #No default value
+set(PASTIX_INC "" CACHE PATH "Pastix Lib Include Directory") #No default value
 # Header libs
 # Binaries
 set(BOOST_LOG_LIB "" CACHE PATH "Boost log library") #No default value
@@ -22,7 +23,9 @@ set(SS_CHOLMOD_LIB "" CACHE PATH "SuiteSparse CHOLMOD") #No default value
 set(METIS_LIB "" CACHE PATH "Metis location")
 set(LAPACK_LIB "" CACHE PATH "Lapack location")
 set(BLAS_LIB "" CACHE PATH "Blas location")
-set(TBB_LIB "" CACHE PATH "Blas location")
+set(TBB_LIB "" CACHE PATH "TBB location")
+set(PASTIX_LIB "" CACHE PATH "Pastix location")
+set(SCOTCH_LIB "" CACHE PATH "Pastix location")
 # Binaries
 ####### Required Libraries ########################
 
@@ -30,6 +33,7 @@ include_directories(${EIGEN_INC})
 include_directories(${BOOST_INC})
 include_directories(${SS_INC})
 include_directories(${TBB_INC})
+include_directories(${PASTIX_INC})
 
 #BOOST LOG
 add_definitions(-DBOOST_ALL_DYN_LINK)
@@ -52,6 +56,16 @@ find_library(SS_UMFPACK umfpack PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 find_library(SS_QR spqr PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 #SuiteSparse
 
+#Pastix
+#find_library(BLAS_LIBRARY blas PATHS ${LIB_INSTALL_DIR})
+#find_library(HWLOC_LIBRARY hwloc PATHS ${LIB_INSTALL_DIR})
+find_library(PTSCOTCH ptscotch PATHS ${SCOTCH_LIB} NO_DEFAULT_PATH)
+find_library(SCOTCH scotch PATHS ${SCOTCH_LIB} NO_DEFAULT_PATH)
+find_library(SCOTCH_ERR scotcherrexit PATHS ${SCOTCH_LIB} NO_DEFAULT_PATH)
+find_library(PTSCOTCH_ERR ptscotcherrexit PATHS ${SCOTCH_LIB} NO_DEFAULT_PATH)
+find_library(PASTIX pastix PATHS ${PASTIX_LIB} NO_DEFAULT_PATH)
+#Pastix
+
 find_library(TBB tbb PATHS ${TBB_LIB} NO_DEFAULT_PATH)
 find_library(METIS metis PATHS ${METIS_LIB} NO_DEFAULT_PATH)
 find_library(LAPACK lapack PATHS ${LAPACK_LIB} NO_DEFAULT_PATH)
@@ -69,9 +83,10 @@ target_link_libraries(${PROJECT_NAME}
 		      ${SS_QR}
 		      ${SS_CHOLMOD}
 		      ${SS_CONFIG}
-		      ${BLAS} ${LAPACK}
 		      ${METIS} ${SS_AMD} ${SS_CAMD} ${SS_COLAMD} ${SS_CCOLAMD} ${TBB}
-		      pthread )
+		      ${PASTIX} ${PTSCOTCH} ${SCOTCH} ${SCOTCH_ERR}
+		      ${BLAS} ${LAPACK} m rt
+		      pthread hwloc gfortran )
 
 install(TARGETS linearprogramming RUNTIME DESTINATION bin)
 
