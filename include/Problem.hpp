@@ -27,8 +27,10 @@ enum class SolveFor {
 // Solver State
 enum class SolverState {
   Feasible,
-  Infeasible,
-  InProgress
+  PrimalInfeasible,
+  DualInfeasible,
+  InProgress,
+  MaximumIterations
 };
 
 /**

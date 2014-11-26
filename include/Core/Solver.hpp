@@ -42,9 +42,7 @@ class Solver {
     const double residualY0{std::max(1.0, problem.b.norm())};
     const double residualZ0{std::max(1.0, problem.h.norm())};
 
-    BOOST_LOG_TRIVIAL(info) << "Compute Initial Point ";
     Point currentPoint = getInitialPoint();
-    BOOST_LOG_TRIVIAL(info) << "Got Initial Point ";
 
     Residual tolerantResidual(problem);
 
@@ -59,15 +57,15 @@ class Solver {
       SolverState solverState = getSolverState(residual, tolerantResidual);
 
       if (solverState == SolverState::Feasible) {
-        BOOST_LOG_TRIVIAL(info) << "Solution found ";
-        return Solution(residual, currentPoint);
-      } else if (solverState == SolverState::Infeasible) {
-        BOOST_LOG_TRIVIAL(info) << "Solution found, its Infeasible ";
-        return Solution(residual, currentPoint);
+        return Solution(residual, currentPoint, solverState);
+      } else if (solverState == SolverState::PrimalInfeasible ||
+                 solverState == SolverState::DualInfeasible) {
+        return Solution(residual, currentPoint, solverState);
       } else if (i == problem.maxIterations) {
-        BOOST_LOG_TRIVIAL(info) << "Maximum number of iterations reached ";
-        return Solution(residual, currentPoint);
+        return Solution(residual, currentPoint, SolverState::MaximumIterations);
       }
+
+      BOOST_LOG_TRIVIAL(info) << residual;
 
       // Compute scalings for given point
       Scalings scalings(currentPoint);
@@ -140,9 +138,9 @@ class Solver {
 
     Point point(problem);
     Scalings scalings;
-    BOOST_LOG_TRIVIAL(info) << "Factorization for Initial Point";
+
     linearSolver.template factor<lp::SolveFor::Initial>(scalings);
-    BOOST_LOG_TRIVIAL(info) << "Factorization Done... for Initial Point";
+
     {
       // Get Primal initial points
       Eigen::VectorXd rhsX(problem.c.rows());
@@ -205,7 +203,6 @@ class Solver {
    */
   NewtonDirection getSubSolution(const Scalings& scalings) {
     // Only one factorization in loop is done here
-    BOOST_LOG_TRIVIAL(info) << "First time Factor";
     linearSolver.template factor<lp::SolveFor::StepDirection>(scalings);
 
     Eigen::VectorXd rhsX(-1 * problem.c);

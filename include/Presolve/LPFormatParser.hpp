@@ -230,7 +230,7 @@ class LPFormatParser {
       BOOST_LOG_TRIVIAL(info) << "Failed to read file";
       // FIXME Had to return problem, but problem is not created, may be raise
       // exception
-
+      throw std::runtime_error("Failed to read file...");
       // return;
     }
 
@@ -249,18 +249,24 @@ class LPFormatParser {
 
     ParsedObject obj;
 
+    BOOST_LOG_TRIVIAL(info) << "Parsing started";
+
     bool isParsingSuccess =
         phrase_parse(firstIterator, lastIterator, lpGrammar, skipper, obj);
 
+    BOOST_LOG_TRIVIAL(info) << "Parsing Completed";
+
     if (!isParsingSuccess) {
-      BOOST_LOG_TRIVIAL(info) << "Failed";
+      throw std::runtime_error("Parsing failed...Check the file");
     }
 
-    BOOST_LOG_TRIVIAL(info) << obj;
+    BOOST_LOG_TRIVIAL(trace) << obj;
 
+    BOOST_LOG_TRIVIAL(info) << "Presolve started";
     Problem problem = getProblem(obj);
+    BOOST_LOG_TRIVIAL(info) << "Presolve completed";
 
-    BOOST_LOG_TRIVIAL(info) << "After presolve: " << problem;
+    BOOST_LOG_TRIVIAL(trace) << "After presolve: " << problem;
 
     return problem;
   }
@@ -317,16 +323,23 @@ class LPFormatParser {
       ++index;
     }
 
-    BOOST_LOG_TRIVIAL(info) << "Got the names " << nameMap.size();
+    BOOST_LOG_TRIVIAL(trace) << "Got the names " << nameMap.size();
+
+    BOOST_LOG_TRIVIAL(info) << "Getting constraints...";
     std::vector<CT> constraintTriplets =
         getConstraintTriplets(parsedObj, nameMap, c, h);
 
-    BOOST_LOG_TRIVIAL(info) << "Got the constraintTriplets "
-                            << constraintTriplets.size();
+    BOOST_LOG_TRIVIAL(trace) << "Got the constraintTriplets "
+                             << constraintTriplets.size();
 
+    BOOST_LOG_TRIVIAL(info) << "Add missing bounds...";
     addMissingBounds(nameMap, parsedObj);
+
+    BOOST_LOG_TRIVIAL(info) << "Add defined bounds...";
     addBounds(parsedObj, nameMap, constraintTriplets, c, h);
-    BOOST_LOG_TRIVIAL(info) << "Got the bounds " << constraintTriplets.size();
+
+    BOOST_LOG_TRIVIAL(trace) << "Added bounds, total constraints are "
+                             << constraintTriplets.size();
     return getProblem(constraintTriplets, h, c);
   }
 
@@ -359,19 +372,27 @@ class LPFormatParser {
                                 constraintTriplets.end());
     }
 
-    BOOST_LOG_TRIVIAL(info) << "Before QR: " << problem;
+    BOOST_LOG_TRIVIAL(info) << "Before Presolve ";
+    BOOST_LOG_TRIVIAL(info) << "Constraint Rows: " << problem.G.rows()
+                            << " Constraint Cols: " << problem.G.cols()
+                            << " Constraint NNZ: " << problem.G.nonZeros();
 
-    removeRedundantRows(problem);
+    BOOST_LOG_TRIVIAL(info) << "Remove redundant columns...";
+    removeRedundantColumns(problem);
 
+    BOOST_LOG_TRIVIAL(info) << "After Presolve ";
+    BOOST_LOG_TRIVIAL(info) << "Constraint Rows: " << problem.G.rows()
+                            << " Constraint Cols: " << problem.G.cols()
+                            << " Constraint NNZ: " << problem.G.nonZeros();
     // FIXME Remove
-//     printInCVXSparseForm(problem);
+    //     printInCVXSparseForm(problem);
     return problem;
   }
 
   /**
    *
-   * Full row rank is required for linear programming, as all proofs are
-   * considered with full row rank of a constrained matrix
+   * Full column rank is required for linear programming, as all proofs are
+   * considered with full column rank of a constrained matrix
    *
    * Determination of full row rank
    * 1. Using QR (SPQR) from suitesparse as it has more chance of getting
@@ -399,7 +420,7 @@ class LPFormatParser {
    *
    * As equality for we don't delete rows, we check here for dependent columns
    */
-  void removeRedundantRows(Problem& problem) const {
+  void removeRedundantColumns(Problem& problem) const {
     // As suitesparse latest version are not returning (From 4.3.1) is not
     // returning rank in SPQR_istat[4] array as document says, so getting rank
     // from m_rank protected attr from eigen
@@ -448,7 +469,7 @@ class LPFormatParser {
 
     qrSolver.compute(problem.G);
 
-    BOOST_LOG_TRIVIAL(info) << "Rank col: " << qrSolver.rank();
+    BOOST_LOG_TRIVIAL(trace) << "Rank col: " << qrSolver.rank();
     if (qrSolver.rank() == problem.G.cols()) {
       // Nothing to change, return peacefully
       return;
@@ -662,33 +683,60 @@ class LPFormatParser {
   void addMissingBounds(const std::unordered_map<std::string, int>& nameMap,
                         ParsedObject& parsedObject) const {
     using namespace std;
+    // Copy nameMap and knock of elements found and finally iterate to add
+    // missing bounds
+    std::unordered_map<std::string, int> missingNames(nameMap);
 
-    for (const auto& name : nameMap) {
-      // Check in bounds
-      const auto& boundIter = find_if(
-          begin(parsedObject.bounds), end(parsedObject.bounds),
-          [&](Bounds & bound)->bool const { return name.first == bound.name; });
+    std::vector<std::string> rowSingletons =
+        getRowSingletonConstraints(parsedObject);
 
-      // Check in constraints they have to be singletons
-      const auto& constraintIter = find_if(
-          begin(parsedObject.constraints), end(parsedObject.constraints),
-          [&](Constraints & constraint)->bool const {
-            if (constraint.lhs.size() == 1 &&
-                constraint.lhs.at(0).name == name.first) {
-              return true;
-            }
-          });
+    for (const auto& name : rowSingletons) {
+      std::unordered_map<std::string, int>::const_iterator elemIter =
+          missingNames.find(name);
 
-      if (boundIter == end(parsedObject.bounds) &&
-          constraintIter == end(parsedObject.constraints)) {
-        // Not found
-        Bounds bound;
-        bound.name = name.first;
-        bound.uOp = Operators::ge;
-        bound.upper = 0;
-        parsedObject.bounds.push_back(bound);
+      if (elemIter != end(missingNames)) {
+        // Delete if its present in rowSingletons
+        missingNames.erase(elemIter);
       }
     }
+
+    for (const auto& bound : parsedObject.bounds) {
+      std::unordered_map<std::string, int>::const_iterator elemIter =
+          missingNames.find(bound.name);
+
+      if (elemIter != end(missingNames)) {
+        // Delete if its present in bounds
+        missingNames.erase(elemIter);
+      }
+    }
+
+    // At this stage we have all missing names
+    for (const auto& name : missingNames) {
+      // Not found
+      Bounds bound;
+      bound.name = name.first;
+      bound.uOp = Operators::ge;
+      bound.upper = 0;
+      parsedObject.bounds.push_back(bound);
+    }
+  }
+
+  /**
+   * Returns row singletons used to find missing bounds
+   * As there will be less or no singleton constraints, we can store it in
+   * vector for search later
+   */
+  std::vector<std::string> getRowSingletonConstraints(
+      const ParsedObject& parsedObject) const {
+    // Check in constraints they have to be singletons
+    std::vector<std::string> rowSingletons;
+    for (const auto& constraint : parsedObject.constraints) {
+      if (constraint.lhs.size() == 1) {
+        rowSingletons.push_back(constraint.lhs.at(0).name);
+      }
+    }
+
+    return rowSingletons;
   }
 
   // FIXME Remove, just for testing

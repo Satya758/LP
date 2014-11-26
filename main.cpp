@@ -19,6 +19,7 @@
 class CommandOptions {
  public:
   std::string fileName;
+  std::string choleskySolver = "CholmodLLT";
   int logOptions;
 };
 
@@ -27,7 +28,9 @@ CommandOptions getOptions(int argc, char **argv) {
 
   po::options_description desc("Allowed options");
   desc.add_options()("help", "LP Format file name to solve and log options")(
-      "file,f", po::value<std::string>(), "Enter file path name");
+      "file,f", po::value<std::string>(), "Enter file path name")(
+      "CholeskySolver,c", po::value<std::string>(),
+      "Enter solver name, default is Cholmod LLT");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -43,6 +46,10 @@ CommandOptions getOptions(int argc, char **argv) {
     options.fileName = vm["file"].as<std::string>();
   } else {
     std::cout << "File name is not given " << std::endl;
+  }
+
+  if (vm.count("CholeskySolver")) {
+    options.choleskySolver = vm["CholeskySolver"].as<std::string>();
   }
 
   return options;
@@ -63,16 +70,30 @@ int main(int argc, char **argv) {
     std::cout << "File name is not given " << std::endl;
     return 1;
   }
-  //   lp::Problem problem = parser.parse("/home/satya/Desktop/QiTest.lp");
-  lp::Problem problem = parser.parse(options.fileName);
 
-  lp::Solver<lp::SuiteSparseCholeskyLLT<lp::NTScalings>, lp::NTScalings> solver(
-      problem);
+  BOOST_LOG_TRIVIAL(info) << "Parser and Presolve Started";
+  lp::Problem problem = parser.parse(options.fileName);
+  BOOST_LOG_TRIVIAL(info) << "Parser and Presolve Ended";
+
+  typedef lp::SuiteSparseCholeskyLLT<
+      lp::NTScalings,
+      Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double, Eigen::Lower>>>
+      CholmodSolver;
+  typedef lp::SuiteSparseCholeskyLLT<
+      lp::NTScalings, Eigen::PastixLDLT<Eigen::SparseMatrix<double>,
+                                        Eigen::Lower>> PastixSolver;
 
   BOOST_LOG_TRIVIAL(info) << "Started to solve";
-  lp::Solution solution = solver.solve();
 
+  if (options.choleskySolver == "CholmodLLT") {
+    lp::Solver<CholmodSolver, lp::NTScalings> solver(problem);
+    lp::Solution solution = solver.solve();
     BOOST_LOG_TRIVIAL(info) << solution;
+  } else {
+    lp::Solver<PastixSolver, lp::NTScalings> solver(problem);
+    lp::Solution solution = solver.solve();
+    BOOST_LOG_TRIVIAL(info) << solution;
+  }
 
   BOOST_LOG_TRIVIAL(info) << "Ended";
 

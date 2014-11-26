@@ -196,26 +196,45 @@ class Residual {
   }
 };
 
+// std::ostream& operator<<(std::ostream& out, const Residual& residual) {
+//   using namespace std;
+//
+//   out << endl << "##################### Residual Start" << endl;
+//   out << "Residual X : " << endl << residual.residualX << endl;
+//   out << "Residual Y : " << endl << residual.residualY << endl;
+//   out << "Residual Z : " << endl << residual.residualZ << endl;
+//   out << "Residual Tau : " << endl << residual.residualTau << endl;
+//   out << "Duality Gap: " << residual.gap << endl;
+//   out << "Relative Gap: " << residual.relativeGap << endl;
+//   out << "Primal Slack: " << residual.primalSlack << endl;
+//   out << "Dual Slack: " << residual.dualSlack << endl;
+//   out << "Primal Objective: " << residual.primalObjective << endl;
+//   out << "Dual Objective: " << residual.dualObjective << endl;
+//   out << "Primal Residual: " << residual.primalResidual << endl;
+//   out << "Dual Residual: " << residual.dualResidual << endl;
+//   out << "Primal Infeasibility: " << residual.primalInfeasibility << endl;
+//   out << "Dual Infeasibility: " << residual.dualInfeasibility << endl;
+//   out << "Iterations: " << residual.iterations << endl;
+//   out << "##################### Residual End" << endl;
+//
+//   return out;
+// }
+
 std::ostream& operator<<(std::ostream& out, const Residual& residual) {
   using namespace std;
 
-  out << endl << "##################### Residual Start" << endl;
-  out << "Residual X : " << endl << residual.residualX << endl;
-  out << "Residual Y : " << endl << residual.residualY << endl;
-  out << "Residual Z : " << endl << residual.residualZ << endl;
-  out << "Residual Tau : " << endl << residual.residualTau << endl;
-  out << "Duality Gap: " << residual.gap << endl;
-  out << "Relative Gap: " << residual.relativeGap << endl;
-  out << "Primal Slack: " << residual.primalSlack << endl;
-  out << "Dual Slack: " << residual.dualSlack << endl;
-  out << "Primal Objective: " << residual.primalObjective << endl;
-  out << "Dual Objective: " << residual.dualObjective << endl;
-  out << "Primal Residual: " << residual.primalResidual << endl;
-  out << "Dual Residual: " << residual.dualResidual << endl;
-  out << "Primal Infeasibility: " << residual.primalInfeasibility << endl;
-  out << "Dual Infeasibility: " << residual.dualInfeasibility << endl;
-  out << "Iterations: " << residual.iterations << endl;
-  out << "##################### Residual End" << endl;
+  if (residual.iterations == 0) {
+    out << "Iteration \t\t"
+        << "PCost \t\t"
+        << "DCost \t\t"
+        << "Gap \t\t"
+        << "PResidual \t\t"
+        << "Dresidual \t\t" << endl;
+  }
+
+  out << residual.iterations << "\t\t" << residual.primalObjective << "\t\t"
+      << residual.dualObjective << "\t\t" << residual.gap << "\t\t"
+      << residual.primalResidual << "\t\t" << residual.dualResidual << "\t\t";
 
   return out;
 }
@@ -242,9 +261,10 @@ SolverState getSolverState(const Residual& residual,
   if (residual <= tolerantResidual) {
     return SolverState::Feasible;
   } else if (residual.primalInfeasibility <=
-                 tolerantResidual.primalInfeasibility ||
-             residual.dualInfeasibility <= tolerantResidual.dualInfeasibility) {
-    return SolverState::Infeasible;
+             tolerantResidual.primalInfeasibility) {
+    return SolverState::PrimalInfeasible;
+  } else if (residual.dualInfeasibility <= tolerantResidual.dualInfeasibility) {
+    return SolverState::DualInfeasible;
   } else {
     return SolverState::InProgress;
   }

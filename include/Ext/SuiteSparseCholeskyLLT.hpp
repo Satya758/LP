@@ -67,7 +67,7 @@ namespace lp {
  *As performace is utmost importance second option is chosen
  *
  */
-template <typename Scalings>
+template <typename Scalings, typename CholeskySolver>
 class SuiteSparseCholeskyLLT {
 
  public:
@@ -91,19 +91,12 @@ class SuiteSparseCholeskyLLT {
     omegaTilde =
         getOmegaTilde(scalings, boost::mpl::int_<static_cast<int>(solveFor)>());
 
-    //     BOOST_LOG_TRIVIAL(info) << " Rows: " << omega.rows() << " Cols: " <<
-    // omega.cols() <<  " NNZ: " << omega.nonZeros();
-    //     BOOST_LOG_TRIVIAL(info) << "Mul start";
-    //     SparseMatrix temp = omega * omega.transpose();
-    //     BOOST_LOG_TRIVIAL(info) << "Mul end";
-    //     BOOST_LOG_TRIVIAL(info) << " Rows: " << temp.rows() << " Cols: " <<
-    // temp.cols() <<  " NNZ: " << temp.nonZeros();
     // G' * W{-1} * W{-T} * G
     solver.compute(omega.transpose() * omega);
 
     if (solver.info() != Eigen::Success) {
-      // TODO Raise exception maybe Matrix is singular
-      BOOST_LOG_TRIVIAL(error) << "Factorization failed";
+      BOOST_LOG_TRIVIAL(error)
+          << "Factorization failed...Matrix is not positive definite";
       // FIXME As of now I do not know what to do, if matrix is not positive
       // definite
       throw std::runtime_error(
@@ -195,9 +188,11 @@ class SuiteSparseCholeskyLLT {
   }
 
   const lp::Problem& problem;
+  CholeskySolver solver;
   // Custom Solver
-//   Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double, Eigen::Lower>> solver;
-      Eigen::PastixLDLT<Eigen::SparseMatrix<double>, Eigen::Lower> solver;
+  //   Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double, Eigen::Lower>>
+  // solver;
+  //   Eigen::PastixLDLT<Eigen::SparseMatrix<double>, Eigen::Lower> solver;
   // All below variables are used to store intermediate results to avoid
   // repeated calculations or copies (Product computaions are coslty)
 
