@@ -38,8 +38,6 @@ class Point {
   Eigen::VectorXd s;
   // Dual Variables
   Eigen::VectorXd z;
-  // Dual slack residual, used in ADMM
-  Eigen::VectorXd r;
   // Homogenizing variables
   double kappa;
   double tau;
