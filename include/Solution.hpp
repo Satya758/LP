@@ -25,7 +25,6 @@ class Solution {
            const SolverState& solverState)
       : x(getFinalSolution(point.x, point.tau)),
         s(getFinalSolution(point.s, point.tau)),
-        y(getFinalSolution(point.y, point.tau)),
         z(getFinalSolution(point.z, point.tau)),
         gap(residual.gap),
         primalObjective(residual.primalObjective),
@@ -35,7 +34,6 @@ class Solution {
 
   const Eigen::VectorXd x;
   const Eigen::VectorXd s;
-  const Eigen::VectorXd y;
   const Eigen::VectorXd z;
 
   const double gap;

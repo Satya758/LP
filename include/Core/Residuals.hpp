@@ -39,11 +39,8 @@ class Residual {
   // variables
  private:
   double residualX0;
-  double residualY0;
   double residualZ0;
 
-  // A*x
-  Eigen::VectorXd subResidualY;
   // s + G*x
   Eigen::VectorXd subResidualZ;
   // -A'*y - G'*z
@@ -52,23 +49,17 @@ class Residual {
  public:
   // Compute residual for given point
   Residual(const Problem& problem, const Point& point, int iterations,
-           const double residualX0, const double residualY0,
-           const double residualZ0)
+           const double residualX0, const double residualZ0)
       : residualX0(residualX0),
-        residualY0(residualY0),
         residualZ0(residualZ0),
-        subResidualY(problem.A * point.x),
         subResidualZ(point.s + problem.G * point.x),
-        subResidualX(-problem.A.transpose() * point.y -
-                     problem.G.transpose() * point.z),
+        subResidualX(-problem.G.transpose() * point.z),
         residualX(getResidualX(problem, point)),
-        residualY(getResidualY(problem, point)),
         residualZ(getResidualZ(problem, point)),
         residualTau(getResidualTau(problem, point)),
         gap(point.s.dot(point.z)),
         primalObjective(problem.c.dot(point.x) / point.tau),
-        dualObjective(-(problem.b.dot(point.y) + problem.h.dot(point.z)) /
-                      point.tau),
+        dualObjective(-(problem.h.dot(point.z)) / point.tau),
         relativeGap(getRelativeGap()),
         primalResidual(getPrimalResidual(problem, point)),
         dualResidual(getDualResidual(problem, point)),
@@ -94,12 +85,10 @@ class Residual {
         // Initializing irrevelant vectors in this scenario with least int to
         // avoid performance hit
         residualX(1),
-        residualY(1),
         residualZ(1),
         residualTau(1) {}
 
   const Eigen::VectorXd residualX;
-  const Eigen::VectorXd residualY;
   const Eigen::VectorXd residualZ;
   const double residualTau;
 
@@ -133,33 +122,28 @@ class Residual {
     }
   }
 
-  // -A'*y - G'*z - c*tau
+  // -G'*z - c*tau
   Eigen::VectorXd getResidualX(const Problem& problem, const Point& point) {
     return subResidualX - problem.c * point.tau;
   }
-  //  A*x - b*tau
-  Eigen::VectorXd getResidualY(const Problem& problem, const Point& point) {
-    return subResidualY - problem.b * point.tau;
-  }
+
   // s + G*x - h*tau
   Eigen::VectorXd getResidualZ(const Problem& problem, const Point& point) {
     return subResidualZ - problem.h * point.tau;
   }
-  // kappa + c'*x + b'*y + h'*z
+  // kappa + c'*x + h'*z
   double getResidualTau(const Problem& problem, const Point& point) {
-    // FIXME c'*x and b'*y + h'*z are computed again for primalObjective and
+    // FIXME c'*x and h'*z are computed again for primalObjective and
     // dualObjective
-    return point.kappa + problem.c.dot(point.x) + problem.b.dot(point.y) +
-           problem.h.dot(point.z);
+    return point.kappa + problem.c.dot(point.x) + problem.h.dot(point.z);
   }
 
   double getPrimalResidual(const Problem& problem, const Point& point) const {
-    //  A*x - b*tau
-    double resY = (residualY.norm()) / point.tau;
+
     // s + G*x - h*tau
     double resZ = (residualZ.norm()) / point.tau;
 
-    return std::max(resY / residualY0, resZ / residualZ0);
+    return resZ / residualZ0;
   }
 
   double getDualResidual(const Problem& problem, const Point& point) const {
@@ -186,9 +170,7 @@ class Residual {
     // cx
     // TODO Check, tau is muliplied to primalObjective
     if (primalObjective < 0) {
-      return std::max(subResidualY.norm() / residualY0,
-                      subResidualZ.norm() / residualZ0) /
-             std::abs(primalObjective);
+      return (subResidualZ.norm() / residualZ0) / std::abs(primalObjective);
     } else {
       // TODO Some large number, is it correct way!
       return 100;

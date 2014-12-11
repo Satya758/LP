@@ -29,9 +29,9 @@ enum class Direction {
  *Linear solver is provided as template argument
  */
 template <typename LinearSolver, typename Scalings>
-class Solver {
+class IPMSolver {
  public:
-  Solver(const Problem& problem) : problem(problem), linearSolver(problem) {}
+  IPMSolver(const Problem& problem) : problem(problem), linearSolver(problem) {}
 
   /**
    *
@@ -39,7 +39,6 @@ class Solver {
   Solution solve() {
 
     const double residualX0{std::max(1.0, problem.c.norm())};
-    const double residualY0{std::max(1.0, problem.b.norm())};
     const double residualZ0{std::max(1.0, problem.h.norm())};
 
     Point currentPoint = getInitialPoint();
@@ -51,8 +50,7 @@ class Solver {
     // loop
     for (int i = 0; i <= problem.maxIterations; ++i) {
 
-      Residual residual(problem, currentPoint, i, residualX0, residualY0,
-                        residualZ0);
+      Residual residual(problem, currentPoint, i, residualX0, residualZ0);
 
       SolverState solverState = getSolverState(residual, tolerantResidual);
 
@@ -147,8 +145,8 @@ class Solver {
       rhsX.setZero();
 
       NewtonDirection direction =
-          linearSolver.template solve<lp::SolveFor::Initial>(
-              rhsX, problem.b, problem.h, scalings);
+          linearSolver.template solve<lp::SolveFor::Initial>(rhsX, problem.h,
+                                                             scalings);
       // TODO FIXME Can we invoke move constructor instead of copying data?
       point.x = direction.x;
       point.s = -1 * direction.z;
@@ -158,16 +156,13 @@ class Solver {
     {
       // Get Dual initial points
       Eigen::VectorXd rhsX(-1 * problem.c);
-      Eigen::VectorXd rhsY(problem.A.rows());
-      rhsY.setZero();
       Eigen::VectorXd rhsZ(problem.G.rows());
       rhsZ.setZero();
 
       NewtonDirection direction =
-          linearSolver.template solve<lp::SolveFor::Initial>(rhsX, rhsY, rhsZ,
+          linearSolver.template solve<lp::SolveFor::Initial>(rhsX, rhsZ,
                                                              scalings);
       // FIXME Move constructor?
-      point.y = direction.y;
       point.z = direction.z;
 
       adjustInitialPoint(point.z);
@@ -195,9 +190,8 @@ class Solver {
   /**
    * Finds solution to sub KKT system
    *
-   * [0   A'   G'] [x]    [-c]
-   * [A   0    0 ] [y] =  [b]
-   * [G   0   -W'W][z]	  [h]
+   * [0   G'][x]  [-c]
+   * [G -W'W][z]  [h]
    *
    * TODO result is multiplied with dgi...why
    */
@@ -209,7 +203,7 @@ class Solver {
 
     NewtonDirection direction =
         linearSolver.template solve<lp::SolveFor::StepDirection>(
-            rhsX, problem.b, problem.h, scalings);
+            rhsX, problem.h, scalings);
     // TODO Why
     return scalings.dgInverse * direction;
   }
@@ -220,9 +214,8 @@ class Solver {
    * return value of z is scaled, actual value is W * z
    * FIXME Why Scaled z
    *
-   * [0   A'   G'] [x]    [dx]
-   * [A   0    0 ] [y] =  [-dy]
-   * [G   0   -W'W][z]	  [W{T}(lambda o\ ds) - dz]
+   * [0    G'][x]    [dx]
+   * [G  -W'W][z]    [W{T}(lambda o\ ds) - dz]
    *
    * Final Rhs is computed here with help from Scalings object
    *
@@ -257,13 +250,11 @@ class Solver {
                            residual.residualZ * residualMul;
 
     BOOST_LOG_TRIVIAL(trace) << "rhsX" << residual.residualX * residualMul;
-    BOOST_LOG_TRIVIAL(trace) << "rhsY" << -residualMul * residual.residualY;
     BOOST_LOG_TRIVIAL(trace) << "rhsZ" << rhsZ;
 
     NewtonDirection subSolution2 =
         linearSolver.template solve<lp::SolveFor::StepDirection>(
-            residual.residualX * residualMul, -residualMul * residual.residualY,
-            rhsZ, scalings);
+            residual.residualX * residualMul, rhsZ, scalings);
 
     BOOST_LOG_TRIVIAL(trace) << "Solution from LS: " << subSolution2;
 
@@ -278,14 +269,12 @@ class Solver {
     point.tau =
         scalings.dgInverse *
         (residual.residualTau * residualMul - subRhs.tau / currentPoint.tau +
-         problem.c.dot(subSolution2.x) + problem.b.dot(subSolution2.y) +
+         problem.c.dot(subSolution2.x) +
          (scalings.NNOInverse.asDiagonal() * problem.h).dot(subSolution2.z)) /
         (1 + subSolution.z.squaredNorm());
 
     // x = x2 + tau * x1
     point.x = subSolution2.x + point.tau * subSolution.x;
-    // y = y2 + tau * y1
-    point.y = subSolution2.y + point.tau * subSolution.y;
     // z = z2 + tau * z1
     point.z = subSolution2.z + point.tau * subSolution.z;
 

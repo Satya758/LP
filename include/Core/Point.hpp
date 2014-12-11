@@ -27,10 +27,7 @@ class Point {
   Point(int zRows) : z(zRows) {}
   // Defines sizes, This is default
   Point(const Problem& problem)
-      : x(problem.c.rows()),
-        s(problem.G.rows()),
-        y(problem.A.rows()),
-        z(problem.G.rows()) {}
+      : x(problem.c.rows()), s(problem.G.rows()), z(problem.G.rows()) {}
 
   // I dont have to declare this as friend as all member variables are public
   // anyway
@@ -40,8 +37,9 @@ class Point {
   Eigen::VectorXd x;
   Eigen::VectorXd s;
   // Dual Variables
-  Eigen::VectorXd y;
   Eigen::VectorXd z;
+  // Dual slack residual, used in ADMM
+  Eigen::VectorXd r;
   // Homogenizing variables
   double kappa;
   double tau;
@@ -54,7 +52,6 @@ std::ostream& operator<<(std::ostream& out, const Point& point) {
   out << endl << "##################### Point Start" << endl;
   out << "Primal Variable x:" << endl << point.x << endl;
   out << "Primal Variable s:" << endl << point.s << endl;
-  out << "Dual Variable y:" << endl << point.y << endl;
   out << "Dual Variable z:" << endl << point.z << endl;
   out << "Homogenizing Variable kappa: " << endl << point.kappa << endl;
   out << "Homogenizing Variable tau: " << endl << point.tau << endl;
@@ -69,7 +66,6 @@ Point updatePoint(const Point& lhs, const Point& rhs, const double alpha) {
 
   result.x = lhs.x + alpha * rhs.x;
   result.s = lhs.s + alpha * rhs.s;
-  result.y = lhs.y + alpha * rhs.y;
   result.z = lhs.z + alpha * rhs.z;
   result.tau = lhs.tau + alpha * rhs.tau;
   result.kappa = lhs.kappa + alpha * rhs.kappa;
@@ -90,7 +86,6 @@ Point operator+(const Point& lhs, const Point& rhs) {
 
   result.x = lhs.x + rhs.x;
   result.s = lhs.s + rhs.s;
-  result.y = lhs.y + rhs.y;
   result.z = lhs.z + rhs.z;
   result.tau = lhs.tau + rhs.tau;
   result.kappa = lhs.kappa + rhs.kappa;
@@ -104,7 +99,6 @@ Point operator*(const double lhs, const Point& rhs) {
 
   result.x = lhs * rhs.x;
   result.s = lhs * rhs.s;
-  result.y = lhs * rhs.y;
   result.z = lhs * rhs.z;
   result.tau = lhs * rhs.tau;
   result.kappa = lhs * rhs.kappa;

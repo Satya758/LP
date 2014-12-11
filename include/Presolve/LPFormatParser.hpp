@@ -378,7 +378,7 @@ class LPFormatParser {
                             << " Constraint NNZ: " << problem.G.nonZeros();
 
     BOOST_LOG_TRIVIAL(info) << "Remove redundant columns...";
-    removeRedundantColumns(problem);
+//     removeRedundantColumns(problem);
 
     BOOST_LOG_TRIVIAL(info) << "After Presolve ";
     BOOST_LOG_TRIVIAL(info) << "Constraint Rows: " << problem.G.rows()
@@ -486,10 +486,6 @@ class LPFormatParser {
     // FIXME We have to keep track of removed columns, how do we compute final
     // value in post solve?
     problem.c.conservativeResize(qrSolver.rank());
-    // FIXME So that muliplication inside solver will not result in inconsistent
-    // dimensions
-    // As there is no data we can do resize instead of conservativeResize
-    problem.A.resize(problem.A.rows(), qrSolver.rank());
   }
 
   // FIXME Raw loops refactor the code!!

@@ -68,10 +68,10 @@ namespace lp {
  *
  */
 template <typename Scalings, typename CholeskySolver>
-class SuiteSparseCholeskyLLT {
+class IPMCholeskyLLT {
 
  public:
-  SuiteSparseCholeskyLLT(const lp::Problem& problem) : problem(problem) {}
+  IPMCholeskyLLT(const lp::Problem& problem) : problem(problem) {}
 
   // Factor matrix omega = G' * W{-1} * W{-T} * G
   // If scalingMatrix W is Identity factor G' * G
@@ -118,14 +118,13 @@ class SuiteSparseCholeskyLLT {
   // z = W{-1} * W{-T} * (G*x - rhsZ)
   template <lp::SolveFor solveFor>
   lp::NewtonDirection solve(const Eigen::VectorXd& rhsX,
-                            const Eigen::VectorXd& rhsY,
                             const Eigen::VectorXd& rhsZ,
                             const Scalings& scalings) const {
 
     lp::NewtonDirection direction;
 
     {
-      // rhsX + G' * W{-1} * W{-T} * rhsZ + A' * (rhsY - y)
+      // rhsX + G' * W{-1} * W{-T} * rhsZ
       Eigen::VectorXd rhs = rhsX + omegaTilde * rhsZ;
 
       direction.x = solver.solve(rhs);

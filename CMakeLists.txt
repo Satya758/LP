@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.1)
 
 project(linearprogramming)
 
-# set(CMAKE_BUILD_TYPE "Debug")
-set(CMAKE_BUILD_TYPE "Release")
+set(CMAKE_BUILD_TYPE "Debug")
+# set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++14 -fopenmp")
 
 add_subdirectory(include)
@@ -16,6 +16,7 @@ set(BOOST_INC "" CACHE PATH "Boost Lib Include Directory") #No default value
 set(TBB_INC "" CACHE PATH "TBB Lib Include Directory") #No default value
 set(SS_INC "" CACHE PATH "SuiteSparse Lib Include Directory") #No default value
 set(PASTIX_INC "" CACHE PATH "Pastix Lib Include Directory") #No default value
+
 # Header libs
 # Binaries
 set(BOOST_LOG_LIB "" CACHE PATH "Boost log library") #No default value
@@ -34,6 +35,12 @@ include_directories(${BOOST_INC})
 include_directories(${SS_INC})
 include_directories(${TBB_INC})
 include_directories(${PASTIX_INC})
+
+#FIXME
+set(SCS_INC "/home/satya/Downloads/scs-master/include")
+include_directories(${SCS_INC})
+find_library(SCS_LIBRARIES scsdir PATHS "/home/satya/Downloads/scs-master/out")
+#FIXME
 
 #BOOST LOG
 add_definitions(-DBOOST_ALL_DYN_LINK)
@@ -84,7 +91,7 @@ target_link_libraries(${PROJECT_NAME}
 		      ${SS_CHOLMOD}
 		      ${SS_CONFIG}
 		      ${METIS} ${SS_AMD} ${SS_CAMD} ${SS_COLAMD} ${SS_CCOLAMD} ${TBB}
-		      ${PASTIX} ${PTSCOTCH} ${SCOTCH} ${SCOTCH_ERR}
+		      ${PASTIX} ${PTSCOTCH} ${SCOTCH} ${SCOTCH_ERR} ${SCS_LIBRARIES}
 		      ${BLAS} ${LAPACK} m rt
 		      pthread hwloc gfortran )
 

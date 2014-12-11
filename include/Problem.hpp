@@ -13,7 +13,7 @@ namespace lp {
 
 // TODO Is this correct place to have solver typedef? It might make sense as
 // users also use this header to represent their matrices
-typedef Eigen::SparseMatrix<double, Eigen::ColMajor, std::ptrdiff_t>
+typedef Eigen::SparseMatrix<double, Eigen::ColMajor, int>
     SparseMatrix;
 
 // Used in LinearSolver
@@ -66,12 +66,10 @@ class Problem {
   // Problem constructor forces to enter dimensions to have valid entries for
   // all related matrices
   Problem(int inequalityRows, int equalityRows, int cols,
-          int maxIterations_ = 200, double relativeGapTolerance_ = 1e-6,
-          double gapTolerance_ = 1e-7, double residualTolerance_ = 1e-7)
+          int maxIterations_ = 2000, double relativeGapTolerance_ = 1e-3,
+          double gapTolerance_ = 1e-3, double residualTolerance_ = 1e-3)
       : G(inequalityRows, cols),
         h(inequalityRows),
-        A(equalityRows, cols),
-        b(equalityRows),
         c(cols),
         maxIterations(maxIterations_),
         relativeGapTolerance(relativeGapTolerance_),
@@ -82,9 +80,6 @@ class Problem {
   // Inequality constraints
   SparseMatrix G;
   Eigen::VectorXd h;
-  // Equality constraints
-  SparseMatrix A;
-  Eigen::VectorXd b;
 
   // Maximum number of iterations after which algorithm terminates if feasible
   // solution not found
@@ -133,11 +128,7 @@ class NewtonDirection {
   // Variable names of solution are given in generic names such as x, y, z
   // As solution is for 3 X 3 block matrix we have three dense vectors denoting
   // that
-  // Case when equality constraints are not present then y is not used
-  // computations
-  // TODO Check when y is not used
   Eigen::VectorXd x;
-  Eigen::VectorXd y;
   Eigen::VectorXd z;
 };
 
@@ -145,7 +136,6 @@ NewtonDirection operator*(const double lhs, const NewtonDirection& rhs) {
   NewtonDirection result;
 
   result.x = lhs * rhs.x;
-  result.y = lhs * rhs.y;
   result.z = lhs * rhs.z;
 
   return result;
@@ -156,7 +146,6 @@ std::ostream& operator<<(std::ostream& out, const NewtonDirection& direction) {
 
   out << endl << "##################### NewtonDirection Start" << endl;
   out << "Value of x: " << endl << direction.x << endl;
-  out << "Value of y: " << endl << direction.y << endl;
   out << "Value of z: " << endl << direction.z << endl;
   out << "##################### NewtonDirection End" << endl;
 
