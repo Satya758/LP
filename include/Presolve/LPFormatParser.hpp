@@ -378,7 +378,7 @@ class LPFormatParser {
                             << " Constraint NNZ: " << problem.G.nonZeros();
 
     BOOST_LOG_TRIVIAL(info) << "Remove redundant columns...";
-//     removeRedundantColumns(problem);
+    //     removeRedundantColumns(problem);
 
     BOOST_LOG_TRIVIAL(info) << "After Presolve ";
     BOOST_LOG_TRIVIAL(info) << "Constraint Rows: " << problem.G.rows()

@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.1)
 
 project(linearprogramming)
 
-set(CMAKE_BUILD_TYPE "Debug")
-# set(CMAKE_BUILD_TYPE "Release")
+# set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++14 -fopenmp")
 
 add_subdirectory(include)
@@ -35,12 +35,6 @@ include_directories(${BOOST_INC})
 include_directories(${SS_INC})
 include_directories(${TBB_INC})
 include_directories(${PASTIX_INC})
-
-#FIXME
-set(SCS_INC "/home/satya/Downloads/scs-master/include")
-include_directories(${SCS_INC})
-find_library(SCS_LIBRARIES scsdir PATHS "/home/satya/Downloads/scs-master/out")
-#FIXME
 
 #BOOST LOG
 add_definitions(-DBOOST_ALL_DYN_LINK)
@@ -93,7 +87,7 @@ target_link_libraries(${PROJECT_NAME}
 		      ${METIS} ${SS_AMD} ${SS_CAMD} ${SS_COLAMD} ${SS_CCOLAMD} ${TBB}
 		      ${PASTIX} ${PTSCOTCH} ${SCOTCH} ${SCOTCH_ERR} ${SCS_LIBRARIES}
 		      ${BLAS} ${LAPACK} m rt
-		      pthread hwloc gfortran )
+		      pthread hwloc gfortran profiler )
 
 install(TARGETS linearprogramming RUNTIME DESTINATION bin)
 

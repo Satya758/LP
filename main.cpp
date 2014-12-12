@@ -10,81 +10,14 @@
 #include <Problem.hpp>
 #include <Solution.hpp>
 #include <Core/IPMSolver.hpp>
-#include <Core/ADMMSolver.hpp>
 
 #include <Ext/NTScalings.hpp>
 #include <Ext/IPMCholeskyLLT.hpp>
 
 #include <Presolve/LPFormatParser.hpp>
 
-// SCS
-#include <Ext/ADMMCholeskyLDLT.hpp>
-
-extern "C" {
-#include "scs.h"
-#include "../linsys/amatrix.h"
-}
-
 #include <random>
 #include <iostream>
-
-#define EXTRAVERBOSE
-
-void callSCS(lp::Problem& problem) {
-
-  Cone* k;
-  Data* d;
-  Work* w;
-  Sol* sol;
-
-  Info info = {0};
-
-  k = (Cone*)scs_calloc(1, sizeof(Cone));
-  d = (Data*)scs_calloc(1, sizeof(Data));
-  sol = (Sol*)scs_calloc(1, sizeof(Sol));
-
-  AMatrix* Araw = (AMatrix*)malloc(sizeof(AMatrix));
-
-  problem.G.makeCompressed();
-
-  d->m = problem.G.rows();
-  d->n = problem.G.cols();
-
-  d->A = Araw;
-
-  Araw->x = problem.G.valuePtr();
-  Araw->i = problem.G.innerIndexPtr();
-  Araw->p = problem.G.outerIndexPtr();
-
-  d->b = problem.h.data();
-  d->c = problem.c.data();
-
-  k->l = problem.G.rows();
-
-  d->max_iters = 1000000;
-  d->eps = 1e-1;
-  d->alpha = 1.5;
-  d->rho_x = 1e-3;
-  d->scale = 1;
-  d->verbose = true;
-  d->normalize = 1;
-
-  scs(d, k, sol, &info);
-
-  using namespace std;
-
-  cout << info.status << endl;
-
-  cout << sol->x[0] << "----" << sol->x[1] << endl;
-  cout << sol->y[0] << "----" << sol->y[1] << endl;
-  cout << sol->s[0] << "----" << sol->s[1] << endl;
-
-  cout << "Primal R: " << info.resPri << endl;
-  cout << "Dual R: " << info.resDual << endl;
-  cout << "Duality Gap: " << info.relGap << endl;
-  cout << "Number of iterations: " << info.iter << endl;
-  cout << "Time taken: " << info.solveTime << endl;
-}
 
 class CommandOptions {
  public:
@@ -145,38 +78,17 @@ int main(int argc, char** argv) {
   lp::Problem problem = parser.parse(options.fileName);
   BOOST_LOG_TRIVIAL(info) << "Parser and Presolve Ended";
 
-  //     typedef lp::IPMCholeskyLLT<
-  //         lp::NTScalings,
-          Eigen::CholmodSupernodalLLT<Eigen::SparseMatrix<double,
-    Eigen::Lower>>
-          CholmodSolver;
-  //     typedef lp::IPMCholeskyLLT<lp::NTScalings,
-  //                                Eigen::PastixLDLT<Eigen::SparseMatrix<double>,
-  //                                                  Eigen::Lower>>
-  // PastixSolver;
-  //
-  //     BOOST_LOG_TRIVIAL(info) << "Started to solve";
-  //
-  //     if (options.choleskySolver == "CholmodLLT") {
-  //       lp::IPMSolver<CholmodSolver, lp::NTScalings> solver(problem);
-  //       lp::Solution solution = solver.solve();
-  //       BOOST_LOG_TRIVIAL(info) << solution;
-  //     } else {
-  //       lp::IPMSolver<PastixSolver, lp::NTScalings> solver(problem);
-  //       lp::Solution solution = solver.solve();
-  //       BOOST_LOG_TRIVIAL(info) << solution;
-  //     }
-  //
-  //     BOOST_LOG_TRIVIAL(info) << "Ended";
+  typedef lp::IPMCholeskyLLT<
+      lp::NTScalings,
+      lp::CholmodSupernodalLLT<Eigen::SparseMatrix<double, Eigen::Lower>>>
+      CholmodSolver;
 
-  //   typedef lp::ADMMCholeskyLDLT<Eigen::PastixLDLT<
-  //       Eigen::SparseMatrix<double>, Eigen::Lower>> ADMMPastixSolver;
-  //
-  //   lp::ADMMSolver<ADMMPastixSolver> solver(problem);
-  //   lp::Solution solution = solver.solve();
-  //   BOOST_LOG_TRIVIAL(info) << solution;
+  BOOST_LOG_TRIVIAL(info) << "Started to solve";
 
-  callSCS(problem);
+  lp::IPMSolver<CholmodSolver, lp::NTScalings> solver(problem);
+  lp::Solution solution = solver.solve();
+  BOOST_LOG_TRIVIAL(info) << solution;
 
+  BOOST_LOG_TRIVIAL(info) << "Ended";
   return 0;
 }

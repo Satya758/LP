@@ -1,46 +1,12 @@
 #ifndef SUITESPARSE_CHOLESKYLLT_HPP
 #define SUITESPARSE_CHOLESKYLLT_HPP
 
-// #include <Eigen/PaStiXSupport>
-
 #include <boost/log/trivial.hpp>
 #include <boost/mpl/int.hpp>
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/CholmodSupport>
-
-//////////////////////////////////////////////////////////////////
-// FIXME Boost is having wierd errors when <Eigen/PaStiXSupport>, so basicallt
-// copied code from same file and pasted here to shutup boost log/spirit,
-// preprocessor
-#include "Eigen/SparseCore"
-
-#include "Eigen/src/Core/util/DisableStupidWarnings.h"
-//****************************************************************************//
-// TODO Why do I have to add this again they were any way added in
-// <Eigen/PaStiXSupport>, but are not considered for some reason, without
-// these
-// there are compiler errors
-#include <complex>
-extern "C" {
-#include <pastix_nompi.h>
-#include <pastix.h>
-}
-
-#ifdef complex
-#undef complex
-#endif
-
-#define COMPLEX std::complex<float>
-#define DCOMPLEX std::complex<double>
-//****************************************************************************//
-#include "Eigen/src/misc/Solve.h"
-#include "Eigen/src/misc/SparseSolve.h"
-#include "Eigen/src/PaStiXSupport/PaStiXSupport.h"
-
-#include "Eigen/src/Core/util/ReenableStupidWarnings.h"
-//////////////////////////////////////////////////////////////////
 
 #include <Problem.hpp>
 
@@ -71,7 +37,11 @@ template <typename Scalings, typename CholeskySolver>
 class IPMCholeskyLLT {
 
  public:
-  IPMCholeskyLLT(const lp::Problem& problem) : problem(problem) {}
+  IPMCholeskyLLT(const lp::Problem& problem) : problem(problem) {
+    // TODO In Linear programming non zero pattern of SPD does not change, so it
+    // done only once, but what about other cones?
+    solver.analyzePattern(problem.G.transpose() * problem.G);
+  }
 
   // Factor matrix omega = G' * W{-1} * W{-T} * G
   // If scalingMatrix W is Identity factor G' * G
@@ -200,6 +170,38 @@ class IPMCholeskyLLT {
 
   // G' * W{-1} Lets call it Omega
   SparseMatrix omega;
+};
+
+/**
+ * Extension of Eigen cholmod wrapper to do symbolic factorize only once at the
+ * start solver iteration
+ *
+ * AnalyzePatter should be called by the user, before calling compute
+ *
+ */
+template <typename _MatrixType, int _UpLo = Eigen::Lower>
+class CholmodSupernodalLLT
+    : public Eigen::CholmodBase<_MatrixType, _UpLo,
+                                CholmodSupernodalLLT<_MatrixType, _UpLo>> {
+
+  typedef Eigen::CholmodBase<_MatrixType, _UpLo, CholmodSupernodalLLT> Base;
+
+  using Base::m_cholmod;
+
+ public:
+  typedef _MatrixType MatrixType;
+
+  CholmodSupernodalLLT() : Base() { init(); }
+
+  void compute(const MatrixType& matrix) { Base::factorize(matrix); }
+
+  ~CholmodSupernodalLLT() {}
+
+ protected:
+  void init() {
+    m_cholmod.final_asis = 1;
+    m_cholmod.supernodal = CHOLMOD_SUPERNODAL;
+  }
 };
 }
 

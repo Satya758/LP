@@ -13,8 +13,7 @@ namespace lp {
 
 // TODO Is this correct place to have solver typedef? It might make sense as
 // users also use this header to represent their matrices
-typedef Eigen::SparseMatrix<double, Eigen::ColMajor, int>
-    SparseMatrix;
+typedef Eigen::SparseMatrix<double, Eigen::ColMajor, int> SparseMatrix;
 
 // Used in LinearSolver
 // Template specialization for solve method (instead of boolean flag)
@@ -66,8 +65,8 @@ class Problem {
   // Problem constructor forces to enter dimensions to have valid entries for
   // all related matrices
   Problem(int inequalityRows, int equalityRows, int cols,
-          int maxIterations_ = 2000, double relativeGapTolerance_ = 1e-3,
-          double gapTolerance_ = 1e-3, double residualTolerance_ = 1e-3)
+          int maxIterations_ = 200, double relativeGapTolerance_ = 1e-6,
+          double gapTolerance_ = 1e-7, double residualTolerance_ = 1e-7)
       : G(inequalityRows, cols),
         h(inequalityRows),
         c(cols),

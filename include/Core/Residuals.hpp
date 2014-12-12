@@ -2,6 +2,7 @@
 #define RESIDUALS_HPP
 
 #include <iostream>
+#include <iomanip>
 #include <climits>
 #include <algorithm>
 
@@ -206,17 +207,17 @@ std::ostream& operator<<(std::ostream& out, const Residual& residual) {
   using namespace std;
 
   if (residual.iterations == 0) {
-    out << "Iteration \t\t"
-        << "PCost \t\t"
-        << "DCost \t\t"
-        << "Gap \t\t"
-        << "PResidual \t\t"
-        << "Dresidual \t\t" << endl;
+    out << left << setw(20) << "Iteration" << setw(20) << "PCost" << setw(20)
+        << "DCost" << setw(20) << "Gap" << setw(20) << "PResidual" << setw(20)
+        << "DResidual";
+
+    return out;
   }
 
-  out << residual.iterations << "\t\t" << residual.primalObjective << "\t\t"
-      << residual.dualObjective << "\t\t" << residual.gap << "\t\t"
-      << residual.primalResidual << "\t\t" << residual.dualResidual << "\t\t";
+  out << left << setw(20) << residual.iterations << setw(20)
+      << residual.primalObjective << setw(20) << residual.dualObjective
+      << setw(20) << residual.gap << setw(20) << residual.primalResidual
+      << setw(20) << residual.dualResidual;
 
   return out;
 }
