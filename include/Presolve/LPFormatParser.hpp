@@ -29,6 +29,7 @@
 #include <Eigen/OrderingMethods>
 
 #include <Problem.hpp>
+#include <Core/Timer.hpp>
 
 namespace lp {
 namespace parser {
@@ -224,6 +225,10 @@ class LPFormatParser {
   Problem parse(const std::string& fileName) const {
     using namespace qi;
 
+    Timer& timer = Timer::getInstance();
+
+    timer.start(Fragments::Parsing);
+
     std::ifstream fileStream(fileName, std::ios_base::in);
 
     if (!fileStream) {
@@ -261,6 +266,8 @@ class LPFormatParser {
     }
 
     BOOST_LOG_TRIVIAL(trace) << obj;
+
+    timer.end(Fragments::Parsing);
 
     BOOST_LOG_TRIVIAL(info) << "Presolve started";
     Problem problem = getProblem(obj);
@@ -378,7 +385,11 @@ class LPFormatParser {
                             << " Constraint NNZ: " << problem.G.nonZeros();
 
     BOOST_LOG_TRIVIAL(info) << "Remove redundant columns...";
-    //     removeRedundantColumns(problem);
+
+    Timer& timer = Timer::getInstance();
+    timer.start(Fragments::RemoveRedundantCols);
+//     removeRedundantColumns(problem);
+    timer.end(Fragments::RemoveRedundantCols);
 
     BOOST_LOG_TRIVIAL(info) << "After Presolve ";
     BOOST_LOG_TRIVIAL(info) << "Constraint Rows: " << problem.G.rows()

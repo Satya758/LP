@@ -7,6 +7,7 @@
 #include <boost/log/expressions.hpp>
 #include <boost/program_options.hpp>
 
+#include <Core/Timer.hpp>
 #include <Problem.hpp>
 #include <Solution.hpp>
 #include <Core/IPMSolver.hpp>
@@ -61,7 +62,7 @@ CommandOptions getOptions(int argc, char** argv) {
 int main(int argc, char** argv) {
   // testSolver();
   boost::log::core::get()->set_filter(boost::log::trivial::severity >=
-                                      boost::log::trivial::info);
+                                      boost::log::trivial::trace);
 
   CommandOptions options = getOptions(argc, argv);
 
@@ -73,6 +74,9 @@ int main(int argc, char** argv) {
     std::cout << "File name is not given " << std::endl;
     return 1;
   }
+
+  lp::Timer& timer = lp::Timer::getInstance();
+  timer.start(lp::Fragments::OverAll);
 
   BOOST_LOG_TRIVIAL(info) << "Parser and Presolve Started";
   lp::Problem problem = parser.parse(options.fileName);
@@ -90,5 +94,8 @@ int main(int argc, char** argv) {
   BOOST_LOG_TRIVIAL(info) << solution;
 
   BOOST_LOG_TRIVIAL(info) << "Ended";
+  timer.end(lp::Fragments::OverAll);
+
+  BOOST_LOG_TRIVIAL(info) << timer;
   return 0;
 }

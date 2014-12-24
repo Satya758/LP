@@ -226,8 +226,8 @@ std::ostream& operator<<(std::ostream& out, const Residual& residual) {
 // scenarios
 // Very restrictive use case
 bool operator<=(const Residual& lhs, const Residual& rhs) {
-  return (lhs.primalResidual <= rhs.primalResidual &&
-          lhs.dualResidual <= rhs.dualResidual &&
+  return (lhs.primalResidual <= rhs.primalResidual ||
+          lhs.dualResidual <= rhs.dualResidual ||
           (lhs.gap <= rhs.gap || lhs.relativeGap <= rhs.relativeGap));
   // TODO Had to consider maximumIterations reached
   //|| lhs.iterations <= rhs.iterations);

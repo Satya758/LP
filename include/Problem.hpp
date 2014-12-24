@@ -13,7 +13,7 @@ namespace lp {
 
 // TODO Is this correct place to have solver typedef? It might make sense as
 // users also use this header to represent their matrices
-typedef Eigen::SparseMatrix<double, Eigen::ColMajor, int> SparseMatrix;
+typedef Eigen::SparseMatrix<double, Eigen::ColMajor, std::ptrdiff_t> SparseMatrix;
 
 // Used in LinearSolver
 // Template specialization for solve method (instead of boolean flag)
@@ -66,14 +66,16 @@ class Problem {
   // all related matrices
   Problem(int inequalityRows, int equalityRows, int cols,
           int maxIterations_ = 200, double relativeGapTolerance_ = 1e-6,
-          double gapTolerance_ = 1e-7, double residualTolerance_ = 1e-7)
+          double gapTolerance_ = 1e-7, double residualTolerance_ = 1e-7,
+          double scalingTolerance_ = 1e-3)
       : G(inequalityRows, cols),
         h(inequalityRows),
         c(cols),
         maxIterations(maxIterations_),
         relativeGapTolerance(relativeGapTolerance_),
         gapTolerance(gapTolerance_),
-        residualTolerance(residualTolerance_) {}
+        residualTolerance(residualTolerance_),
+        scalingTolerance(scalingTolerance_) {}
   // Objective to minimize
   Eigen::VectorXd c;
   // Inequality constraints
@@ -90,6 +92,8 @@ class Problem {
   const double gapTolerance;
   // Residual in primal and dual variables after newton step
   const double residualTolerance;
+  // To attain numerical stability
+  const double scalingTolerance;
 
   // TODO Some more Options
 };

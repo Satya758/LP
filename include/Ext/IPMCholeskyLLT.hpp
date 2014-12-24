@@ -1,6 +1,10 @@
 #ifndef SUITESPARSE_CHOLESKYLLT_HPP
 #define SUITESPARSE_CHOLESKYLLT_HPP
 
+#include <algorithm>
+#include <cstdlib>
+#include <cmath>
+
 #include <boost/log/trivial.hpp>
 #include <boost/mpl/int.hpp>
 
@@ -8,6 +12,7 @@
 #include <Eigen/Sparse>
 #include <Eigen/CholmodSupport>
 
+#include <Core/Timer.hpp>
 #include <Problem.hpp>
 
 namespace lp {
@@ -40,7 +45,10 @@ class IPMCholeskyLLT {
   IPMCholeskyLLT(const lp::Problem& problem) : problem(problem) {
     // TODO In Linear programming non zero pattern of SPD does not change, so it
     // done only once, but what about other cones?
+    Timer& timer = Timer::getInstance();
+    timer.start(Fragments::CholeskyAnalyze);
     solver.analyzePattern(problem.G.transpose() * problem.G);
+    timer.end(Fragments::CholeskyAnalyze);
   }
 
   // Factor matrix omega = G' * W{-1} * W{-T} * G
@@ -53,6 +61,9 @@ class IPMCholeskyLLT {
   template <lp::SolveFor solveFor>
   void factor(const Scalings& scalings) {
 
+    Timer& timer = Timer::getInstance();
+
+    timer.start(Fragments::PSDMatrix);
     // First compute G * W{-T} and store it
     // Used also to compute omegaTilde
     omega = getOmega(scalings, boost::mpl::int_<static_cast<int>(solveFor)>());
@@ -62,7 +73,16 @@ class IPMCholeskyLLT {
         getOmegaTilde(scalings, boost::mpl::int_<static_cast<int>(solveFor)>());
 
     // G' * W{-1} * W{-T} * G
-    solver.compute(omega.transpose() * omega);
+    SparseMatrix M = omega.transpose() * omega;
+
+    timer.end(Fragments::PSDMatrix);
+
+    // SparseMatrix MHat = scaleSymmetricMatrix(M);
+
+    timer.start(Fragments::CholeskyFactorize);
+    //     solver.compute(MHat);
+    solver.compute(M);
+    timer.end(Fragments::CholeskyFactorize);
 
     if (solver.info() != Eigen::Success) {
       BOOST_LOG_TRIVIAL(error)
@@ -86,6 +106,7 @@ class IPMCholeskyLLT {
   // (L * L') * x = rhsX + G' * W{-1} * W{-T} * rhsZ + A' * (rhsY - y)
   // finally calculate z
   // z = W{-1} * W{-T} * (G*x - rhsZ)
+  // TODO Error message to check if compute/factor is called before solve
   template <lp::SolveFor solveFor>
   lp::NewtonDirection solve(const Eigen::VectorXd& rhsX,
                             const Eigen::VectorXd& rhsZ,
@@ -94,10 +115,13 @@ class IPMCholeskyLLT {
     lp::NewtonDirection direction;
 
     {
+      Timer& timer = Timer::getInstance();
+      timer.start(Fragments::CholeskySolve);
       // rhsX + G' * W{-1} * W{-T} * rhsZ
-      Eigen::VectorXd rhs = rhsX + omegaTilde * rhsZ;
+      Eigen::VectorXd rhs = /*diagonalMatrix **/(rhsX + omegaTilde * rhsZ);
 
-      direction.x = solver.solve(rhs);
+      direction.x = /*diagonalMatrix **/ solver.solve(rhs);
+      timer.end(Fragments::CholeskySolve);
     }
     {
       direction.z = computeWZ(scalings, direction, rhsZ,
@@ -156,6 +180,70 @@ class IPMCholeskyLLT {
     return problem.G * direction.x - rhsZ;
   }
 
+  /**
+   *  Logic is given in paper http://amestoy.perso.enseeiht.fr/doc/adru.pdf
+   *
+   */
+  SparseMatrix scaleSymmetricMatrix(const SparseMatrix& symmetricMatrix) {
+
+    SparseMatrix dm(symmetricMatrix.rows(), symmetricMatrix.rows());
+    dm.setIdentity();
+
+    SparseMatrix MHat = symmetricMatrix;
+
+    while (true) {
+      Eigen::VectorXd scalingVector = getScalingDiagonalVector(MHat);
+
+      if (isScalingConverged(scalingVector)) {
+        break;
+      }
+
+      dm = dm * scalingVector.asDiagonal();
+
+      MHat = dm * symmetricMatrix * dm;
+    }
+
+    diagonalMatrix = dm;
+    return MHat;
+  }
+
+  bool isScalingConverged(const Eigen::VectorXd& scalingVector) {
+
+    double infNorm = std::pow(scalingVector.minCoeff(), 2);
+
+    if ((1 - infNorm) <= problem.scalingTolerance) {
+      return true;
+    }
+
+    return false;
+  }
+
+  Eigen::VectorXd getScalingDiagonalVector(
+      const SparseMatrix& symmetricMatrix) {
+    Eigen::VectorXd diagonalVector(symmetricMatrix.rows());
+
+    Eigen::SparseVector<double> column;
+
+    for (int i = 0; i < symmetricMatrix.cols(); ++i) {
+      column = symmetricMatrix.col(i);
+
+      double maxElem = 0;
+      // Find infinity norm in a vector and assign it to diagonalVector
+      column = column.unaryViewExpr([&](double coeff)->double {
+        maxElem = std::max<double>(maxElem, std::abs(coeff));
+        return coeff;
+      });
+
+      if (maxElem == 0) {
+        diagonalVector(i) = 1;
+      } else {
+        diagonalVector(i) = 1 / std::sqrt(maxElem);
+      }
+    }
+
+    return diagonalVector;
+  }
+
   const lp::Problem& problem;
   CholeskySolver solver;
   // Custom Solver
@@ -170,11 +258,13 @@ class IPMCholeskyLLT {
 
   // G' * W{-1} Lets call it Omega
   SparseMatrix omega;
+  // Used in scaling matrix for numerical stability
+  SparseMatrix diagonalMatrix;
 };
 
 /**
  * Extension of Eigen cholmod wrapper to do symbolic factorize only once at the
- * start solver iteration
+ * start solver of iteration
  *
  * AnalyzePatter should be called by the user, before calling compute
  *
@@ -196,11 +286,45 @@ class CholmodSupernodalLLT
   void compute(const MatrixType& matrix) { Base::factorize(matrix); }
 
   ~CholmodSupernodalLLT() {}
+  /*
+    void analyzePattern(const MatrixType& matrix) {
+      if (this->m_cholmodFactor) {
+        cholmod_free_factor(&this->m_cholmodFactor, &this->m_cholmod);
+        this->m_cholmodFactor = 0;
+      }
+      cholmod_sparse A = viewAsCholmod(matrix);
+      A.stype = -1;
+      this->m_cholmodFactor = cholmod_analyze(&A, &m_cholmod);
+
+      this->m_isInitialized = true;
+      this->m_info = Eigen::Success;
+      this->m_analysisIsOk = true;
+      this->m_factorizationIsOk = false;
+    }
+
+    void factorize(const MatrixType& matrix) {
+      eigen_assert(Base::m_analysisIsOk && "You must first call
+    analyzePattern()");
+      cholmod_sparse A = viewAsCholmod(matrix);
+      A.stype = -1;
+      cholmod_factorize_p(&A, this->m_shiftOffset, 0, 0, this->m_cholmodFactor,
+    &m_cholmod);
+
+      // If the factorization failed, minor is the column at which it did. On
+      // success minor == n.
+      this->m_info =
+          (this->m_cholmodFactor->minor == this->m_cholmodFactor->n ?
+    Eigen::Success
+                                                        :
+    Eigen::NumericalIssue);
+      this->m_factorizationIsOk = true;
+    }*/
 
  protected:
   void init() {
     m_cholmod.final_asis = 1;
     m_cholmod.supernodal = CHOLMOD_SUPERNODAL;
+    m_cholmod.nmethods = 2;
   }
 };
 }
