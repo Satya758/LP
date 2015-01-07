@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
   typedef lp::IPMCholeskyLLT<
       lp::NTScalings,
       lp::CholmodSupernodalLLT<Eigen::SparseMatrix<double, Eigen::Lower>>>
-      CholmodSolver;
+      CholmodSolver;  
 
   BOOST_LOG_TRIVIAL(info) << "Started to solve";
 

@@ -99,30 +99,7 @@ class Problem {
   // TODO Some more Options
 };
 
-std::ostream& operator<<(std::ostream& out, const Problem& problem) {
-  using namespace std;
-
-  out << endl << "##################### Problem Start" << endl;
-  out << "Value of c: " << endl << problem.c.rows() << endl;
-  out << "Value of G: " << endl << "Rows: " << problem.G.rows()
-      << " Cols: " << problem.G.cols() << endl;
-  out << "Value of h: " << endl << problem.h.rows() << endl;
-  out << "##################### Problem End" << endl;
-
-  return out;
-}
-
-// std::ostream& operator<<(std::ostream& out, const Problem& problem) {
-//   using namespace std;
-//
-//   out << endl << "##################### Problem Start" << endl;
-//   out << "Value of c: " << endl << problem.c << endl;
-//   out << "Value of G: " << endl << problem.G << endl;
-//   out << "Value of h: " << endl << problem.h << endl;
-//   out << "##################### Problem End" << endl;
-//
-//   return out;
-// }
+std::ostream& operator<<(std::ostream& out, const Problem& problem);
 
 // TODO Check if we can move this class to different header
 // Solution after newton step computed
@@ -136,24 +113,8 @@ class NewtonDirection {
   Eigen::VectorXd z;
 };
 
-NewtonDirection operator*(const double lhs, const NewtonDirection& rhs) {
-  NewtonDirection result;
+NewtonDirection operator*(const double lhs, const NewtonDirection& rhs);
 
-  result.x = lhs * rhs.x;
-  result.z = lhs * rhs.z;
-
-  return result;
-}
-
-std::ostream& operator<<(std::ostream& out, const NewtonDirection& direction) {
-  using namespace std;
-
-  out << endl << "##################### NewtonDirection Start" << endl;
-  out << "Value of x: " << endl << direction.x << endl;
-  out << "Value of z: " << endl << direction.z << endl;
-  out << "##################### NewtonDirection End" << endl;
-
-  return out;
-}
+std::ostream& operator<<(std::ostream& out, const NewtonDirection& direction);
 }
 #endif  // PROBLEM_HPP

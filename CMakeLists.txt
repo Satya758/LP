@@ -64,11 +64,15 @@ find_library(BLAS openblas PATHS ${BLAS_LIB} NO_DEFAULT_PATH)
 
 # TODO Currently testing/interface is done in main.cpp it should be moved to src directory where everything defined for lp
 # Idea is to use this as linked library rather than header does it make sense!! lets see
-include_directories(./include)
+include_directories(${CMAKE_SOURCE_DIR}/include)
+
+# find_library(CONE_SOLVER coneSolver PATHS ${PROJECT_BINARY_DIR}/src)
+
+# FIXME Move all find_library to src Cmake
 
 add_executable(linearprogramming main.cpp)
 
-target_link_libraries(${PROJECT_NAME}
+target_link_libraries(${PROJECT_NAME} coneSolver
 		      ${BOOST_LOG} ${BOOST_LOG_SETUP} ${BOOST_DATE_TIME} ${BOOST_PO}
 		      ${BOOST_SYSTEM} ${BOOST_THREAD}
 		      ${SS_QR}
@@ -76,7 +80,7 @@ target_link_libraries(${PROJECT_NAME}
 		      ${SS_CONFIG}
 		      ${METIS} ${SS_AMD} ${SS_CAMD} ${SS_COLAMD} ${SS_CCOLAMD} ${TBB}
 		      ${BLAS} ${LAPACK} m rt
-		      pthread hwloc gfortran )
+		      pthread hwloc gfortran)
 
 install(TARGETS linearprogramming RUNTIME DESTINATION bin)
 
