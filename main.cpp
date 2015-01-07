@@ -62,7 +62,7 @@ CommandOptions getOptions(int argc, char** argv) {
 int main(int argc, char** argv) {
   // testSolver();
   boost::log::core::get()->set_filter(boost::log::trivial::severity >=
-                                      boost::log::trivial::trace);
+                                      boost::log::trivial::info);
 
   CommandOptions options = getOptions(argc, argv);
 
@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
   }
 
   lp::Timer& timer = lp::Timer::getInstance();
-  timer.start(lp::Fragments::OverAll);
+  timer.start("Over All", true);
 
   BOOST_LOG_TRIVIAL(info) << "Parser and Presolve Started";
   lp::Problem problem = parser.parse(options.fileName);
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
   BOOST_LOG_TRIVIAL(info) << solution;
 
   BOOST_LOG_TRIVIAL(info) << "Ended";
-  timer.end(lp::Fragments::OverAll);
+  timer.end("Over All");
 
   BOOST_LOG_TRIVIAL(info) << timer;
   return 0;

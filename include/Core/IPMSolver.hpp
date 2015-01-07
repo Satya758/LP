@@ -44,9 +44,9 @@ class IPMSolver {
     const double residualX0{std::max(1.0, problem.c.norm())};
     const double residualZ0{std::max(1.0, problem.h.norm())};
 
-    timer.start(Fragments::InitialPoint);
+    timer.start("Initial Point");
     Point currentPoint = getInitialPoint();
-    timer.end(Fragments::InitialPoint);
+    timer.end("Initial Point");
 
     Residual tolerantResidual(problem);
 
@@ -55,15 +55,15 @@ class IPMSolver {
     // loop
     for (int i = 0; i <= problem.maxIterations; ++i) {
 
-      timer.start(Fragments::ResidualComputation);
+      timer.start("Residual Computation");
       Residual residual(problem, currentPoint, i, residualX0, residualZ0);
-      timer.end(Fragments::ResidualComputation);
+      timer.end("Residual Computation");
 
       BOOST_LOG_TRIVIAL(info) << residual;
 
-      timer.start(Fragments::SolverStateComputation);
+      timer.start("SolverState Computation");
       SolverState solverState = getSolverState(residual, tolerantResidual);
-      timer.end(Fragments::SolverStateComputation);
+      timer.end("SolverState Computation");
 
       if (solverState == SolverState::Feasible) {
         return Solution(residual, currentPoint, solverState);
@@ -75,23 +75,23 @@ class IPMSolver {
         return Solution(residual, currentPoint, SolverState::MaximumIterations);
       }
 
-      timer.start(Fragments::ScalingsCompute);
+      timer.start("Scalings Compute");
       // Compute scalings for given point
       Scalings scalings(currentPoint);
-      timer.end(Fragments::ScalingsCompute);
+      timer.end("Scalings Compute");
 
-      timer.start(Fragments::AffineDirection);
+      timer.start("Affine Direction");
       NewtonDirection subSolution = getSubSolution(scalings);
 
       Point affineDirection = this->template getDirection<Direction::Affine>(
           scalings, residual, subSolution, currentPoint);
-      timer.end(Fragments::AffineDirection);
+      timer.end("Affine Direction");
 
       BOOST_LOG_TRIVIAL(trace) << "Iteration: " << i;
       BOOST_LOG_TRIVIAL(trace) << "Scalings " << scalings;
       BOOST_LOG_TRIVIAL(trace) << "Affine Direction" << affineDirection;
 
-      timer.start(Fragments::StepSizeCompute);
+      timer.start("StepSize Compute");
       double alpha = this->template computeAlpha<Direction::Affine>(
           affineDirection, scalings);
       double sigma = std::pow(1 - alpha, exp);
@@ -103,12 +103,12 @@ class IPMSolver {
                    currentPoint.kappa * currentPoint.tau) /
                   (1 + problem.h.rows());
 
-      timer.end(Fragments::StepSizeCompute);
+      timer.end("StepSize Compute");
       BOOST_LOG_TRIVIAL(trace) << "Mu: " << mu;
       BOOST_LOG_TRIVIAL(trace) << "Sigma: " << sigma;
       BOOST_LOG_TRIVIAL(trace) << "1 - Sigma: " << 1 - sigma;
 
-      timer.start(Fragments::CombinedDirection);
+      timer.start("Combined Direction");
       Point combinedDirection =
           this->template getDirection<Direction::Combined>(
               scalings, residual, subSolution, currentPoint, affineDirection,
@@ -126,13 +126,13 @@ class IPMSolver {
       // TODO Find out how unscaling works
       combinedDirection.tau = combinedDirection.tau * scalings.dgInverse;
       combinedDirection.kappa = combinedDirection.kappa * scalings.dg;
-      timer.end(Fragments::CombinedDirection);
+      timer.end("Combined Direction");
 
-      timer.start(Fragments::DirectionUpdate);
+      timer.start("Direction Update");
       currentPoint = updatePoint(currentPoint, combinedDirection, alpha);
 
       BOOST_LOG_TRIVIAL(trace) << "Updated current point" << currentPoint;
-      timer.end(Fragments::DirectionUpdate);
+      timer.end("Direction Update");
     }
   }
 

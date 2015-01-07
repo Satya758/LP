@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.1)
 
 project(linearprogramming)
 
-set(CMAKE_BUILD_TYPE "Debug")
-# set(CMAKE_BUILD_TYPE "Release")
+# set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++14 -fopenmp")
 
 add_subdirectory(include)
@@ -57,16 +57,6 @@ find_library(SS_UMFPACK umfpack PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 find_library(SS_QR spqr PATHS ${SS_CHOLMOD_LIB} NO_DEFAULT_PATH)
 #SuiteSparse
 
-#Pastix
-#find_library(BLAS_LIBRARY blas PATHS ${LIB_INSTALL_DIR})
-#find_library(HWLOC_LIBRARY hwloc PATHS ${LIB_INSTALL_DIR})
-find_library(PTSCOTCH ptscotch PATHS ${SCOTCH_LIB} NO_DEFAULT_PATH)
-find_library(SCOTCH scotch PATHS ${SCOTCH_LIB} NO_DEFAULT_PATH)
-find_library(SCOTCH_ERR scotcherrexit PATHS ${SCOTCH_LIB} NO_DEFAULT_PATH)
-find_library(PTSCOTCH_ERR ptscotcherrexit PATHS ${SCOTCH_LIB} NO_DEFAULT_PATH)
-find_library(PASTIX pastix PATHS ${PASTIX_LIB} NO_DEFAULT_PATH)
-#Pastix
-
 find_library(TBB tbb PATHS ${TBB_LIB} NO_DEFAULT_PATH)
 find_library(METIS metis PATHS ${METIS_LIB} NO_DEFAULT_PATH)
 find_library(LAPACK lapack PATHS ${LAPACK_LIB} NO_DEFAULT_PATH)
@@ -85,9 +75,8 @@ target_link_libraries(${PROJECT_NAME}
 		      ${SS_CHOLMOD}
 		      ${SS_CONFIG}
 		      ${METIS} ${SS_AMD} ${SS_CAMD} ${SS_COLAMD} ${SS_CCOLAMD} ${TBB}
-		      ${PASTIX} ${PTSCOTCH} ${SCOTCH} ${SCOTCH_ERR} ${SCS_LIBRARIES}
 		      ${BLAS} ${LAPACK} m rt
-		      pthread hwloc gfortran profiler )
+		      pthread hwloc gfortran )
 
 install(TARGETS linearprogramming RUNTIME DESTINATION bin)
 

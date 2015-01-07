@@ -13,7 +13,8 @@ namespace lp {
 
 // TODO Is this correct place to have solver typedef? It might make sense as
 // users also use this header to represent their matrices
-typedef Eigen::SparseMatrix<double, Eigen::ColMajor, std::ptrdiff_t> SparseMatrix;
+typedef Eigen::SparseMatrix<double, Eigen::ColMajor, std::ptrdiff_t>
+    SparseMatrix;
 
 // Used in LinearSolver
 // Template specialization for solve method (instead of boolean flag)

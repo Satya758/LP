@@ -227,7 +227,7 @@ class LPFormatParser {
 
     Timer& timer = Timer::getInstance();
 
-    timer.start(Fragments::Parsing);
+    timer.start("Parsing");
 
     std::ifstream fileStream(fileName, std::ios_base::in);
 
@@ -267,7 +267,7 @@ class LPFormatParser {
 
     BOOST_LOG_TRIVIAL(trace) << obj;
 
-    timer.end(Fragments::Parsing);
+    timer.end("Parsing");
 
     BOOST_LOG_TRIVIAL(info) << "Presolve started";
     Problem problem = getProblem(obj);
@@ -387,9 +387,9 @@ class LPFormatParser {
     BOOST_LOG_TRIVIAL(info) << "Remove redundant columns...";
 
     Timer& timer = Timer::getInstance();
-    timer.start(Fragments::RemoveRedundantCols);
-//     removeRedundantColumns(problem);
-    timer.end(Fragments::RemoveRedundantCols);
+    timer.start("Remove Redundant Cols");
+    //     removeRedundantColumns(problem);
+    timer.end("Remove Redundant Cols");
 
     BOOST_LOG_TRIVIAL(info) << "After Presolve ";
     BOOST_LOG_TRIVIAL(info) << "Constraint Rows: " << problem.G.rows()

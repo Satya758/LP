@@ -9,28 +9,6 @@
 
 namespace lp {
 
-enum class Fragments {
-  Parsing,
-  RemoveRedundantCols,
-  Presolve,
-  // Cholesky
-  CholeskyAnalyze,
-  CholeskyFactorize,
-  CholeskySolve,
-  // PSD Matrix
-  PSDMatrix,
-  // Residual
-  ResidualComputation,
-  InitialPoint,
-  SolverStateComputation,
-  ScalingsCompute,
-  StepSizeCompute,
-  AffineDirection,
-  CombinedDirection,
-  DirectionUpdate,
-  OverAll
-};
-
 namespace internal {
 
 class Clock {
@@ -97,56 +75,45 @@ class Timer {
     return timer;
   }
 
-  void start(Fragments fragment) { fragmentTime.at(fragment).setStart(); }
+  void start(std::string fragment, bool isOverAll) {
+    try {
+      fragmentTime.at(fragment).setStart();
+    }
+    catch (const std::out_of_range& e) {
+      fragmentTime[fragment] = internal::Clock();
+      fragmentTime.at(fragment).setStart();
+    }
 
-  void end(Fragments fragment) { fragmentTime.at(fragment).setEnd(); }
+    if (isOverAll) {
+      overAllFragment = fragment;
+    }
+  }
+
+    void start(std::string fragment) {
+    start(fragment, false);
+  }
+
+  void end(std::string fragment) {
+    try {
+      fragmentTime.at(fragment).setEnd();
+    }
+    catch (const std::out_of_range& e) {
+      fragmentTime[fragment] = internal::Clock();
+      fragmentTime.at(fragment).setEnd();
+    }
+  }
 
  private:
   Timer(const Timer& other) = delete;
   Timer& operator=(const Timer& other) = delete;
 
-  Timer() {
-    fragmentTime.emplace(std::make_pair(Fragments::Parsing, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::RemoveRedundantCols, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::Presolve, internal::Clock()));
+  Timer() {}
 
-    fragmentTime.emplace(
-        std::make_pair(Fragments::CholeskyAnalyze, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::CholeskyFactorize, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::CholeskySolve, internal::Clock()));
-
-    fragmentTime.emplace(
-        std::make_pair(Fragments::PSDMatrix, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::ResidualComputation, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::InitialPoint, internal::Clock()));
-
-    fragmentTime.emplace(
-        std::make_pair(Fragments::SolverStateComputation, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::ScalingsCompute, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::StepSizeCompute, internal::Clock()));
-
-    fragmentTime.emplace(
-        std::make_pair(Fragments::AffineDirection, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::CombinedDirection, internal::Clock()));
-    fragmentTime.emplace(
-        std::make_pair(Fragments::DirectionUpdate, internal::Clock()));
-
-    fragmentTime.emplace(std::make_pair(Fragments::OverAll, internal::Clock()));
-  }
-
-  std::map<Fragments, internal::Clock> fragmentTime;
+  std::map<std::string, internal::Clock> fragmentTime;
+  std::string overAllFragment;
 
   void computePercentage() {
-    internal::Clock& overAllClock = fragmentTime.at(Fragments::OverAll);
+    internal::Clock& overAllClock = fragmentTime.at(overAllFragment);
 
     for (auto& fragmentPair : fragmentTime) {
       fragmentPair.second.computePercentage(overAllClock);
@@ -161,41 +128,14 @@ std::ostream& operator<<(std::ostream& out, Timer& timer) {
 
   timer.computePercentage();
 
-  out << endl << setw(40)
-      << "Over All: " << timer.fragmentTime.at(Fragments::OverAll);
+  out << endl << setw(40) << timer.overAllFragment
+      << timer.fragmentTime.at(timer.overAllFragment);
 
-  out << endl << setw(40)
-      << "Parsing: " << timer.fragmentTime.at(Fragments::Parsing);
-  out << endl << setw(40) << "Remove Redundant Cols: "
-      << timer.fragmentTime.at(Fragments::RemoveRedundantCols);
-
-  out << endl << setw(40) << "Cholesky Analyze: "
-      << timer.fragmentTime.at(Fragments::CholeskyAnalyze);
-  out << endl << setw(40) << "Cholesky Factorize: "
-      << timer.fragmentTime.at(Fragments::CholeskyFactorize);
-  out << endl << setw(40)
-      << "Cholesky Solve: " << timer.fragmentTime.at(Fragments::CholeskySolve);
-  out << endl << setw(40)
-      << "PSDMatrix: " << timer.fragmentTime.at(Fragments::PSDMatrix);
-
-  out << endl << setw(40) << "Residual Computation: "
-      << timer.fragmentTime.at(Fragments::ResidualComputation);
-  out << endl << setw(40)
-      << "Initial Point: " << timer.fragmentTime.at(Fragments::InitialPoint);
-  out << endl << setw(40) << "SolverState Computation: "
-      << timer.fragmentTime.at(Fragments::SolverStateComputation);
-
-  out << endl << setw(40) << "Scalings Compute: "
-      << timer.fragmentTime.at(Fragments::ScalingsCompute);
-  out << endl << setw(40) << "StepSize Compute: "
-      << timer.fragmentTime.at(Fragments::StepSizeCompute);
-
-  out << endl << setw(40) << "Affine Direction: "
-      << timer.fragmentTime.at(Fragments::AffineDirection);
-  out << endl << setw(40) << "Combined Direction: "
-      << timer.fragmentTime.at(Fragments::CombinedDirection);
-  out << endl << setw(40) << "Direction Update: "
-      << timer.fragmentTime.at(Fragments::DirectionUpdate);
+  for (auto fragment : timer.fragmentTime) {
+    if (fragment.first != timer.overAllFragment) {
+      out << endl << setw(40) << fragment.first << timer.fragmentTime.at(fragment.first);
+    }
+  }
 
   return out;
 }

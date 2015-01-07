@@ -46,9 +46,9 @@ class IPMCholeskyLLT {
     // TODO In Linear programming non zero pattern of SPD does not change, so it
     // done only once, but what about other cones?
     Timer& timer = Timer::getInstance();
-    timer.start(Fragments::CholeskyAnalyze);
+    timer.start("Cholesky Analyze");
     solver.analyzePattern(problem.G.transpose() * problem.G);
-    timer.end(Fragments::CholeskyAnalyze);
+    timer.end("Cholesky Analyze");
   }
 
   // Factor matrix omega = G' * W{-1} * W{-T} * G
@@ -63,7 +63,7 @@ class IPMCholeskyLLT {
 
     Timer& timer = Timer::getInstance();
 
-    timer.start(Fragments::PSDMatrix);
+    timer.start("PSD Matrix");
     // First compute G * W{-T} and store it
     // Used also to compute omegaTilde
     omega = getOmega(scalings, boost::mpl::int_<static_cast<int>(solveFor)>());
@@ -75,14 +75,14 @@ class IPMCholeskyLLT {
     // G' * W{-1} * W{-T} * G
     SparseMatrix M = omega.transpose() * omega;
 
-    timer.end(Fragments::PSDMatrix);
+    timer.end("PSD Matrix");
 
     // SparseMatrix MHat = scaleSymmetricMatrix(M);
 
-    timer.start(Fragments::CholeskyFactorize);
+    timer.start("Cholesky Factorize");
     //     solver.compute(MHat);
     solver.compute(M);
-    timer.end(Fragments::CholeskyFactorize);
+    timer.end("Cholesky Factorize");
 
     if (solver.info() != Eigen::Success) {
       BOOST_LOG_TRIVIAL(error)
@@ -116,12 +116,12 @@ class IPMCholeskyLLT {
 
     {
       Timer& timer = Timer::getInstance();
-      timer.start(Fragments::CholeskySolve);
+      timer.start("Cholesky Solve");
       // rhsX + G' * W{-1} * W{-T} * rhsZ
       Eigen::VectorXd rhs = /*diagonalMatrix **/(rhsX + omegaTilde * rhsZ);
 
       direction.x = /*diagonalMatrix **/ solver.solve(rhs);
-      timer.end(Fragments::CholeskySolve);
+      timer.end("Cholesky Solve");
     }
     {
       direction.z = computeWZ(scalings, direction, rhsZ,
