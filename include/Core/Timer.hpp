@@ -13,14 +13,15 @@ namespace internal {
 
 class Clock {
  public:
-  Clock() {}
+  Clock(const int sequence, const int depth)
+      : sequence(sequence), depth(depth) {}
 
   void setStart() {
     if (started && !ended) {
       throw std::runtime_error("Fragment already started but not ended");
     }
     started = true;
-
+    ++iterations;
     start = std::chrono::system_clock::now();
   }
 
@@ -45,6 +46,9 @@ class Clock {
     percentage = 100 * totalDuration.count() / totalTime;
   }
 
+  const int sequence;
+  const int depth;
+
  private:
   std::chrono::time_point<std::chrono::system_clock> start;
   std::chrono::time_point<std::chrono::system_clock> end;
@@ -54,6 +58,8 @@ class Clock {
   bool started = false;
   bool ended = true;
 
+  int iterations = 0;
+
   friend std::ostream& operator<<(std::ostream& out, const Clock& clock);
 };
 
@@ -62,18 +68,27 @@ std::ostream& operator<<(std::ostream& out, const Clock& clock);
 
 class Timer {
  public:
-  static Timer& getInstance() {
-    static Timer timer;
+  static Timer& getIPMInstance() {
+    static Timer ipmTimer("IPM");
 
-    return timer;
+    return ipmTimer;
+  }
+
+  static Timer& getADMMInstance() {
+    static Timer admmTimer("ADMM");
+
+    return admmTimer;
   }
 
   void start(std::string fragment, bool isOverAll) {
     try {
       fragmentTime.at(fragment).setStart();
+      ++depth;
     }
     catch (const std::out_of_range& e) {
-      fragmentTime[fragment] = internal::Clock();
+      ++depth;
+      ++sequence;
+      fragmentTime.emplace(fragment, internal::Clock(sequence, depth));
       fragmentTime.at(fragment).setStart();
     }
 
@@ -85,20 +100,18 @@ class Timer {
   void start(std::string fragment) { start(fragment, false); }
 
   void end(std::string fragment) {
-    try {
-      fragmentTime.at(fragment).setEnd();
-    }
-    catch (const std::out_of_range& e) {
-      fragmentTime[fragment] = internal::Clock();
-      fragmentTime.at(fragment).setEnd();
-    }
+    --depth;
+    fragmentTime.at(fragment).setEnd();
   }
 
  private:
   Timer(const Timer& other) = delete;
   Timer& operator=(const Timer& other) = delete;
+  // TODO Not thread safe
+  static int depth;
+  static int sequence;
 
-  Timer() {}
+  Timer(const std::string module) : module(module) {}
 
   std::map<std::string, internal::Clock> fragmentTime;
   std::string overAllFragment;
@@ -110,6 +123,8 @@ class Timer {
       fragmentPair.second.computePercentage(overAllClock);
     }
   }
+
+  const std::string module;
 
   friend std::ostream& operator<<(std::ostream& out, Timer& timer);
 };

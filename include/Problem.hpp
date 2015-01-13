@@ -65,18 +65,22 @@ class Problem {
  public:
   // Problem constructor forces to enter dimensions to have valid entries for
   // all related matrices
+
   Problem(int inequalityRows, int equalityRows, int cols,
-          int maxIterations_ = 200, double relativeGapTolerance_ = 1e-6,
-          double gapTolerance_ = 1e-7, double residualTolerance_ = 1e-7,
-          double scalingTolerance_ = 1e-3)
+          int ipmMaxIterations_ = 200, double ipmTolerance_ = 1e-7,
+          double scalingTolerance_ = 1e-3, int admmMaxIterations_ = 2500,
+          double admmTolerance_ = 1e-3, double admmRho_ = 1e-3,
+          double admmRelaxationParameter_ = 1.8)
       : G(inequalityRows, cols),
         h(inequalityRows),
         c(cols),
-        maxIterations(maxIterations_),
-        relativeGapTolerance(relativeGapTolerance_),
-        gapTolerance(gapTolerance_),
-        residualTolerance(residualTolerance_),
-        scalingTolerance(scalingTolerance_) {}
+        ipmMaxIterations(ipmMaxIterations_),
+        ipmTolerance(ipmTolerance_),
+        scalingTolerance(scalingTolerance_),
+        admmMaxIterations(admmMaxIterations_),
+        admmTolerance(admmTolerance_),
+        admmRho(admmRho_),
+        admmRelaxationParameter(admmRelaxationParameter_) {}
   // Objective to minimize
   Eigen::VectorXd c;
   // Inequality constraints
@@ -85,16 +89,19 @@ class Problem {
 
   // Maximum number of iterations after which algorithm terminates if feasible
   // solution not found
-  const int maxIterations;
+  const int ipmMaxIterations;
   // Duality gap relative to primal or dual objective
   // which is gap/pobj or gap/dobj
-  const double relativeGapTolerance;
-  // Duality gap
-  const double gapTolerance;
-  // Residual in primal and dual variables after newton step
-  const double residualTolerance;
-  // To attain numerical stability
+  const double ipmTolerance;
+  // To attain numerical stability // TODO Is this used?
   const double scalingTolerance;
+  // ADMM Options
+  const int admmMaxIterations;
+  const double admmTolerance;
+  // TODO Find More about this option
+  const double admmRho;  // Scaling parameter
+  // Relaxation parameter alpha
+  const double admmRelaxationParameter;
 
   // TODO Some more Options
 };

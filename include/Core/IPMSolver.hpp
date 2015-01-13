@@ -39,10 +39,12 @@ class IPMSolver {
    */
   Solution solve() {
 
-    Timer& timer = Timer::getInstance();
-
-    const double residualX0{std::max(1.0, problem.c.norm())};
-    const double residualZ0{std::max(1.0, problem.h.norm())};
+    Timer& timer = Timer::getIPMInstance();
+    // FIXME Remove these lines if not required
+    //     const double residualX0{std::max(1.0, problem.c.norm())};
+    //     const double residualZ0{std::max(1.0, problem.h.norm())};
+    const double residualX0{1.0 + problem.c.norm()};
+    const double residualZ0{1.0 + problem.h.norm()};
 
     timer.start("Initial Point");
     Point currentPoint = getInitialPoint();
@@ -53,7 +55,7 @@ class IPMSolver {
     // TODO Either start from 1 or use just lessthan instead of lessthan or eual
     // to operator, or maybe I can use these indications to find start/end of
     // loop
-    for (int i = 0; i <= problem.maxIterations; ++i) {
+    for (int i = 0; i <= problem.ipmMaxIterations; ++i) {
 
       timer.start("Residual Computation");
       Residual residual(problem, currentPoint, i, residualX0, residualZ0);
@@ -70,8 +72,9 @@ class IPMSolver {
       } else if (solverState == SolverState::PrimalInfeasible ||
                  solverState == SolverState::DualInfeasible) {
         //         return Solution(residual, currentPoint, solverState);
+        // FIXME return after failure
         BOOST_LOG_TRIVIAL(info) << "Problem is Infeasible";
-      } else if (i == problem.maxIterations) {
+      } else if (i == problem.ipmMaxIterations) {
         return Solution(residual, currentPoint, SolverState::MaximumIterations);
       }
 

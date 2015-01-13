@@ -45,7 +45,7 @@ class IPMCholeskyLLT {
   IPMCholeskyLLT(const lp::Problem& problem) : problem(problem) {
     // TODO In Linear programming non zero pattern of SPD does not change, so it
     // done only once, but what about other cones?
-    Timer& timer = Timer::getInstance();
+    Timer& timer = Timer::getIPMInstance();
     timer.start("Cholesky Analyze");
     solver.analyzePattern(problem.G.transpose() * problem.G);
     timer.end("Cholesky Analyze");
@@ -61,8 +61,9 @@ class IPMCholeskyLLT {
   template <lp::SolveFor solveFor>
   void factor(const Scalings& scalings) {
 
-    Timer& timer = Timer::getInstance();
-
+    Timer& timer = Timer::getIPMInstance();
+    // FIXME Check the possibility of avoiding muliplication, check the cholmod
+    // doc
     timer.start("PSD Matrix");
     // First compute G * W{-T} and store it
     // Used also to compute omegaTilde
@@ -115,7 +116,7 @@ class IPMCholeskyLLT {
     lp::NewtonDirection direction;
 
     {
-      Timer& timer = Timer::getInstance();
+      Timer& timer = Timer::getIPMInstance();
       timer.start("Cholesky Solve");
       // rhsX + G' * W{-1} * W{-T} * rhsZ
       Eigen::VectorXd rhs = /*diagonalMatrix **/(rhsX + omegaTilde * rhsZ);
@@ -324,6 +325,7 @@ class CholmodSupernodalLLT
   void init() {
     m_cholmod.final_asis = 1;
     m_cholmod.supernodal = CHOLMOD_SUPERNODAL;
+    // FIXME Set to metis and test
     m_cholmod.nmethods = 2;
   }
 };

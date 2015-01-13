@@ -72,15 +72,36 @@ class Residual {
 
   // Compute Accepted Tolerence residual
   Residual(const Problem& problem)
-      : gap(problem.gapTolerance),
-        relativeGap(problem.relativeGapTolerance),
-        primalResidual(problem.residualTolerance),
-        dualResidual(problem.residualTolerance),
-        iterations(problem.maxIterations),
+      : gap(problem.ipmTolerance),
+        relativeGap(problem.ipmTolerance),
+        primalResidual(problem.ipmTolerance),
+        dualResidual(problem.ipmTolerance),
+        iterations(problem.ipmMaxIterations),
         primalSlack(0),
         dualSlack(0),
-        primalInfeasibility(problem.residualTolerance),
-        dualInfeasibility(problem.residualTolerance),
+        primalInfeasibility(problem.ipmTolerance),
+        dualInfeasibility(problem.ipmTolerance),
+        primalObjective(0),
+        dualObjective(0),
+        // Initializing irrevelant vectors in this scenario with least int to
+        // avoid performance hit
+        residualX(1),
+        residualZ(1),
+        residualTau(1) {}
+
+  // Compute Accepted Tolerence residual for ADMM
+  // Just a overload constructor for ADMM residuals, admm parameter has no
+  // effect
+  Residual(const Problem& problem, const bool admm)
+      : gap(problem.admmTolerance),
+        relativeGap(problem.admmTolerance),
+        primalResidual(problem.admmTolerance),
+        dualResidual(problem.admmTolerance),
+        iterations(problem.admmMaxIterations),
+        primalSlack(0),
+        dualSlack(0),
+        primalInfeasibility(problem.admmTolerance),
+        dualInfeasibility(problem.admmTolerance),
         primalObjective(0),
         dualObjective(0),
         // Initializing irrevelant vectors in this scenario with least int to
@@ -226,8 +247,8 @@ std::ostream& operator<<(std::ostream& out, const Residual& residual) {
 // scenarios
 // Very restrictive use case
 bool operator<=(const Residual& lhs, const Residual& rhs) {
-  return (lhs.primalResidual <= rhs.primalResidual ||
-          lhs.dualResidual <= rhs.dualResidual ||
+  return (lhs.primalResidual <= rhs.primalResidual &&
+          lhs.dualResidual <= rhs.dualResidual &&
           (lhs.gap <= rhs.gap || lhs.relativeGap <= rhs.relativeGap));
   // TODO Had to consider maximumIterations reached
   //|| lhs.iterations <= rhs.iterations);

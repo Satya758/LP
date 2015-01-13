@@ -12,6 +12,8 @@
 #include <Solution.hpp>
 #include <Core/IPMSolver.hpp>
 
+#include <Core/ADMMSolver.hpp>
+
 #include <Ext/NTScalings.hpp>
 #include <Ext/IPMCholeskyLLT.hpp>
 
@@ -75,7 +77,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  lp::Timer& timer = lp::Timer::getInstance();
+  lp::Timer& timer = lp::Timer::getIPMInstance();
   timer.start("Over All", true);
 
   BOOST_LOG_TRIVIAL(info) << "Parser and Presolve Started";
@@ -85,17 +87,29 @@ int main(int argc, char** argv) {
   typedef lp::IPMCholeskyLLT<
       lp::NTScalings,
       lp::CholmodSupernodalLLT<Eigen::SparseMatrix<double, Eigen::Lower>>>
-      CholmodSolver;  
+      CholmodSolver;
 
   BOOST_LOG_TRIVIAL(info) << "Started to solve";
 
   lp::IPMSolver<CholmodSolver, lp::NTScalings> solver(problem);
-  lp::Solution solution = solver.solve();
-  BOOST_LOG_TRIVIAL(info) << solution;
+  //   lp::Solution solution = solver.solve();
+  //   BOOST_LOG_TRIVIAL(info) << solution;
 
   BOOST_LOG_TRIVIAL(info) << "Ended";
   timer.end("Over All");
 
   BOOST_LOG_TRIVIAL(info) << timer;
+
+  lp::Timer& timer2 = lp::Timer::getADMMInstance();
+  timer2.start("Over All", true);
+
+  lp::ADMMSolver solver2(problem);
+  lp::Solution solution2 = solver2.solve();
+
+  BOOST_LOG_TRIVIAL(info) << solution2;
+
+  timer2.end("Over All");
+
+  BOOST_LOG_TRIVIAL(info) << timer2;
   return 0;
 }

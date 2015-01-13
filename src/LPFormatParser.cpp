@@ -224,7 +224,7 @@ typedef Eigen::Triplet<double> CT;
 Problem LPFormatParser::parse(const std::string& fileName) const {
   using namespace qi;
 
-  Timer& timer = Timer::getInstance();
+  Timer& timer = Timer::getIPMInstance();
 
   timer.start("Parsing");
 
@@ -363,7 +363,7 @@ Problem LPFormatParser::getProblem(const std::vector<CT>& constraintTriplets,
 
   BOOST_LOG_TRIVIAL(info) << "Remove redundant columns...";
 
-  Timer& timer = Timer::getInstance();
+  Timer& timer = Timer::getIPMInstance();
   timer.start("Remove Redundant Cols");
   //     removeRedundantColumns(problem);
   timer.end("Remove Redundant Cols");

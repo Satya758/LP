@@ -27,7 +27,10 @@ class Point {
   Point(int zRows) : z(zRows) {}
   // Defines sizes, This is default
   Point(const Problem& problem)
-      : x(problem.c.rows()), s(problem.G.rows()), z(problem.G.rows()) {}
+      : x(problem.c.rows()),
+        s(problem.G.rows()),
+        z(problem.G.rows()),
+        r(problem.c.rows()) {}
 
   // I dont have to declare this as friend as all member variables are public
   // anyway
@@ -38,6 +41,8 @@ class Point {
   Eigen::VectorXd s;
   // Dual Variables
   Eigen::VectorXd z;
+  // // Used in ADMM algorithm
+  Eigen::VectorXd r;
   // Homogenizing variables
   double kappa;
   double tau;
@@ -51,6 +56,7 @@ std::ostream& operator<<(std::ostream& out, const Point& point) {
   out << "Primal Variable x:" << endl << point.x << endl;
   out << "Primal Variable s:" << endl << point.s << endl;
   out << "Dual Variable z:" << endl << point.z << endl;
+  out << "Dual Variable r:" << endl << point.r << endl;
   out << "Homogenizing Variable kappa: " << endl << point.kappa << endl;
   out << "Homogenizing Variable tau: " << endl << point.tau << endl;
   out << "##################### Point End" << endl;
