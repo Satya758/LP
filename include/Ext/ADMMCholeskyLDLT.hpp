@@ -59,6 +59,8 @@ class ADMMCholeskyLDLT {
     Eigen::VectorXd rhs(problem.c.rows() + problem.h.rows());
     rhs << xTauC, zTauH;
 
+    BOOST_LOG_TRIVIAL(info) << "rhs" << rhs;
+
     Eigen::VectorXd mInverseRhs = solve(rhs);
 
     // (mil) Matrix Inverse Lemma solution

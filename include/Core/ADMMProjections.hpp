@@ -1,6 +1,8 @@
 #ifndef ADMM_PROJECTIONS_HPP
 #define ADMM_PROJECTIONS_HPP
 
+#include <boost/log/trivial.hpp>
+
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
@@ -22,7 +24,11 @@ class ADMMProjections {
     subspaceProjectedPoint.z = currentPoint.z + currentPoint.s;
     subspaceProjectedPoint.tau = currentPoint.tau + currentPoint.kappa;
 
+    BOOST_LOG_TRIVIAL(info) << "Addition " << subspaceProjectedPoint;
+
     subspaceProjection.doSubspaceProjection(subspaceProjectedPoint);
+
+    BOOST_LOG_TRIVIAL(info) << "After ss proj " << subspaceProjectedPoint;
 
     relaxsubspaceProjectedPoint(currentPoint, subspaceProjectedPoint);
 
