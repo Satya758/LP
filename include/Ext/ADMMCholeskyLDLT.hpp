@@ -27,8 +27,6 @@ class ADMMCholeskyLDLT {
     SparseMatrix mHat = createMHat();
     timer.end("Create MHat");
 
-    //     BOOST_LOG_TRIVIAL(info) << std::endl <<mHat;
-
     // TODO May be use std::move for mHat as we do not use it anymore
     timer.start("Cholesky Factorize");
     choleskySolver.compute(mHat);
@@ -59,8 +57,6 @@ class ADMMCholeskyLDLT {
     Eigen::VectorXd rhs(problem.c.rows() + problem.h.rows());
     rhs << xTauC, zTauH;
 
-    BOOST_LOG_TRIVIAL(info) << "rhs" << rhs;
-
     Eigen::VectorXd mInverseRhs = solve(rhs);
 
     // (mil) Matrix Inverse Lemma solution
@@ -89,7 +85,7 @@ class ADMMCholeskyLDLT {
     std::vector<Eigen::Triplet<double>> mHatTriplets;
     // Number of non zeros in final resultant SparseMatrix
     // [ I*rho  -G']
-    // [ -G      I ]
+    // [ -G     -I ]
     // is nz in I*rho + nz in I + nz in G
     mHatTriplets.reserve(problem.G.cols() + problem.G.rows() +
                          problem.G.nonZeros());
@@ -124,7 +120,8 @@ class ADMMCholeskyLDLT {
   }
 
   const Problem& problem;
-  Eigen::CholmodSimplicialLDLT<Eigen::SparseMatrix<double, Eigen::Lower>>
+  // std::ptrdiff as index is not working
+  Eigen::CholmodSimplicialLDLT<Eigen::SparseMatrix<double>, Eigen::Lower>
       choleskySolver;
 
   Eigen::VectorXd rhsEta;

@@ -68,9 +68,9 @@ class Problem {
 
   Problem(int inequalityRows, int equalityRows, int cols,
           int ipmMaxIterations_ = 200, double ipmTolerance_ = 1e-7,
-          double scalingTolerance_ = 1e-3, int admmMaxIterations_ = 2500,
+          double scalingTolerance_ = 1e-3, int admmMaxIterations_ = 25000,
           double admmTolerance_ = 1e-3, double admmRho_ = 1e-3,
-          double admmRelaxationParameter_ = 1.8)
+          double admmRelaxationParameter_ = 1.5)
       : G(inequalityRows, cols),
         h(inequalityRows),
         c(cols),

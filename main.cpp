@@ -84,16 +84,17 @@ int main(int argc, char** argv) {
   lp::Problem problem = parser.parse(options.fileName);
   BOOST_LOG_TRIVIAL(info) << "Parser and Presolve Ended";
 
+
+  // std::ptrdiff as index is not working
   typedef lp::IPMCholeskyLLT<
-      lp::NTScalings,
-      lp::CholmodSupernodalLLT<Eigen::SparseMatrix<double, Eigen::Lower>>>
-      CholmodSolver;
+      lp::NTScalings, lp::CholmodSupernodalLLT<Eigen::SparseMatrix<double>,
+                                               Eigen::Lower>> CholmodSolver;
 
   BOOST_LOG_TRIVIAL(info) << "Started to solve";
 
-  lp::IPMSolver<CholmodSolver, lp::NTScalings> solver(problem);
-  //   lp::Solution solution = solver.solve();
-  //   BOOST_LOG_TRIVIAL(info) << solution;
+//   lp::IPMSolver<CholmodSolver, lp::NTScalings> solver(problem);
+//   lp::Solution solution = solver.solve();
+//   BOOST_LOG_TRIVIAL(info) << solution;
 
   BOOST_LOG_TRIVIAL(info) << "Ended";
   timer.end("Over All");

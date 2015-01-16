@@ -134,14 +134,19 @@ class Residual {
 
  private:
   double getRelativeGap() const {
-    if (primalObjective < 0) {
-      return gap / std::abs(primalObjective);
-    } else if (dualObjective > 0) {
-      return gap / std::abs(dualObjective);
-    } else {
-      // Some large number, I think its good enough
-      return 100;
-    }
+//     if (primalObjective < 0) {
+//       return gap / std::abs(primalObjective);
+//     } else if (dualObjective > 0) {
+//       return gap / std::abs(dualObjective);
+//     } else {
+//       return NAN;
+//     }
+
+        double numerator = std::abs(primalObjective + dualObjective);
+    double denominator =
+        std::abs(primalObjective) + std::abs(dualObjective);
+
+    return numerator / denominator;
   }
 
   // -G'*z - c*tau
@@ -175,27 +180,26 @@ class Residual {
     return resX / residualX0;
   }
 
+  // FIXME Accept norm instead of +1 or somthing else then we dont have to do -1 here
   double getPrimalInfeasibility(const Problem& problem,
                                 const Point& point) const {
-    // hz + by
-    // TODO Check, tau is muliplied to dualObjective
-    if (dualObjective > 0) {
-      return (subResidualX.norm() * dualObjective) / residualX0;
+    double den = problem.h.transpose() * point.z;
+
+    if(den < 0){
+      return subResidualX.norm() * ( residualZ0 - 1) / -den;
     } else {
-      // TODO Some large number, is it correct way!
-      return 100;
+      return NAN;
     }
   }
 
   double getDualInfeasibility(const Problem& problem,
                               const Point& point) const {
-    // cx
-    // TODO Check, tau is muliplied to primalObjective
-    if (primalObjective < 0) {
-      return (subResidualZ.norm() / residualZ0) / std::abs(primalObjective);
+    double den = problem.c.transpose() * point.x;
+
+    if(den < 0) {
+      return subResidualZ.norm() * (residualX0 - 1) / -den;
     } else {
-      // TODO Some large number, is it correct way!
-      return 100;
+      return NAN;
     }
   }
 };
@@ -247,9 +251,9 @@ std::ostream& operator<<(std::ostream& out, const Residual& residual) {
 // scenarios
 // Very restrictive use case
 bool operator<=(const Residual& lhs, const Residual& rhs) {
-  return (lhs.primalResidual <= rhs.primalResidual &&
-          lhs.dualResidual <= rhs.dualResidual &&
-          (lhs.gap <= rhs.gap || lhs.relativeGap <= rhs.relativeGap));
+  return ((lhs.primalResidual <= rhs.primalResidual ||
+          lhs.dualResidual <= rhs.dualResidual) ||
+          (/*lhs.gap <= rhs.gap ||*/ lhs.relativeGap <= rhs.relativeGap));
   // TODO Had to consider maximumIterations reached
   //|| lhs.iterations <= rhs.iterations);
 }
