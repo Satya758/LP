@@ -104,6 +104,14 @@ class Problem {
   const double admmRelaxationParameter;
 
   // TODO Some more Options
+
+  /**
+   * iterationPercentage is number of iterations performed to find Diagonal
+   * scalings for given matrix, percentage of size of matrix, where size =
+   * max(m, n)
+   *
+   */
+  void normalize();
 };
 
 std::ostream& operator<<(std::ostream& out, const Problem& problem);

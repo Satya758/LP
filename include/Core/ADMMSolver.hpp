@@ -44,7 +44,7 @@ class ADMMSolver {
       } else if (solverState == SolverState::PrimalInfeasible ||
                  solverState == SolverState::DualInfeasible) {
         BOOST_LOG_TRIVIAL(info) << "Problem is Infeasible";
-//         return Solution(residual, currentPoint, solverState);
+        //         return Solution(residual, currentPoint, solverState);
       } else if (i == problem.admmMaxIterations) {
         return Solution(residual, currentPoint, SolverState::MaximumIterations);
       }
